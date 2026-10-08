@@ -451,4 +451,4 @@ cargo install cargo-packager --version 0.11.8 --locked
 cargo packager --release --formats nsis
 ```
 
-macOS (`app,dmg`) and Linux (`appimage,deb`) packages are built by `.github/workflows/release.yml` (written, not yet run).
+macOS (`app,dmg`) and Linux (`appimage,deb`) packages are built by `.github/workflows/release.yml` (trigger: push a `v*` tag or run it manually; download from the run's Artifacts).

@@ -1,7 +1,7 @@
 # Builds unsigned installers for all three OSes and SHA-256 checksums.
 # Trigger manually or by pushing a tag like v0.1.0.
-# NOTE: written locally and NOT yet run on GitHub. The Windows installer was
-# built and tested locally; macOS and Linux packages are unverified.
+# Packages build successfully on GitHub (v0.1.0). macOS and Linux packages
+# have not yet been installed on real machines.
 name: release
 
 on:
@@ -36,7 +36,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -64,7 +64,7 @@ jobs:
             -exec sha256sum {} \; > SHA256SUMS-${{ matrix.target }}.txt || \
           shasum -a 256 *.dmg > SHA256SUMS-${{ matrix.target }}.txt
           cat SHA256SUMS-*.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ghostchat-${{ matrix.target }}
           path: |

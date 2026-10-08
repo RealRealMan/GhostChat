@@ -112,8 +112,8 @@ Tauri, maintained).
 | OS | Output | Built |
 |---|---|---|
 | Windows | NSIS `setup.exe` (Start menu + desktop shortcut + uninstaller) | locally + CI |
-| macOS | `.app` inside `.dmg`, ad-hoc signed (`signing_identity = "-"`) | CI only (unverified) |
-| Linux | `.AppImage` + `.deb` | CI only (unverified) |
+| macOS | `.app` inside `.dmg`, ad-hoc signed (`signing_identity = "-"`) | built in CI (v0.1.0); not yet installed on a real machine |
+| Linux | `.AppImage` + `.deb` | built in CI (v0.1.0); not yet installed on a real machine |
 
 Why not `cargo-dist`: it targets CLI tools (shell/PowerShell installers, MSI
 for CLIs) and does not produce `.app`/`.dmg`/AppImage for GUI apps.

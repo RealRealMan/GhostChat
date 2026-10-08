@@ -35,7 +35,7 @@ claims the codename of an existing VERIFIED contact. A new key with a
 
 ## 5. Code signing
 MVP ships unsigned (PRD §14). Nothing was purchased. macOS build uses ad-hoc
-signing in CI (unverified because no Mac was available).
+signing in CI. The v0.1.0 DMGs were built, but have not been opened on a real Mac yet.
 
 ## 6. Fuzzing on stable Rust
 `cargo fuzz` needs nightly, which is not installed here. Parsers are covered
