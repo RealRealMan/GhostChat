@@ -27,7 +27,6 @@ pub enum Cmd {
     },
     Theme(Option<String>),
     Effects(Option<bool>),
-    Sound(Option<bool>),
     Flash(Option<bool>),
     Contacts,
     Clear,
@@ -83,10 +82,6 @@ pub const HELP: &[(&str, &str)] = &[
     ),
     ("/theme green|amber|ice", "change colours"),
     ("/fx on|off", "retro effects (scanlines, flicker)"),
-    (
-        "/sound on|off",
-        "chirp when a message arrives while GhostChat is in the background",
-    ),
     (
         "/flash on|off",
         "flash the taskbar / Dock icon when a message arrives in the background",
@@ -165,7 +160,6 @@ pub fn parse(input: &str) -> Cmd {
         },
         "theme" => Cmd::Theme(arg(rest)),
         "fx" | "effects" => Cmd::Effects(on_off_arg(rest)),
-        "sound" => Cmd::Sound(on_off_arg(rest)),
         "flash" => Cmd::Flash(on_off_arg(rest)),
         "contacts" | "list" => Cmd::Contacts,
         "clear" | "cls" => Cmd::Clear,
@@ -235,9 +229,7 @@ mod tests {
 
     #[test]
     fn on_off_toggles() {
-        assert_eq!(parse("/sound off"), Cmd::Sound(Some(false)));
-        assert_eq!(parse("/sound ON"), Cmd::Sound(Some(true)));
-        assert_eq!(parse("/sound"), Cmd::Sound(None));
+        assert_eq!(parse("/flash OFF"), Cmd::Flash(Some(false)));
         assert_eq!(parse("/flash on"), Cmd::Flash(Some(true)));
         assert_eq!(parse("/flash maybe"), Cmd::Flash(None));
         assert_eq!(parse("/fx off"), Cmd::Effects(Some(false)));

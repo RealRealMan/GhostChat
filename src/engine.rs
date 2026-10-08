@@ -215,7 +215,20 @@ pub enum Event {
     Stopped,
 }
 
+impl Event {
+    /// Something the user should notice even when GhostChat is in the
+    /// background: a message, a pair request or an incoming file offer.
+    pub fn wants_attention(&self) -> bool {
+        matches!(
+            self,
+            Event::Text { .. } | Event::PairRequest { .. } | Event::FileIncoming { .. }
+        )
+    }
+}
+
 pub type EventSender = mpsc::UnboundedSender<Event>;
+/// Called after each event; the flag is [`Event::wants_attention`].
+pub type Notify = Arc<dyn Fn(bool) + Send + Sync>;
 
 /// State the endpoint hook needs synchronously.
 #[derive(Debug)]
@@ -282,12 +295,14 @@ impl EngineHandle {
 }
 
 /// Starts the engine on the given runtime. Events are delivered on `events`;
-/// `notify` is called after every event so the UI can repaint.
+/// `notify` is called after every event so the UI can repaint; its argument
+/// is [`Event::wants_attention`], so the UI can alert the user even while its
+/// own loop is paused (minimized window).
 pub fn spawn(
     rt: &tokio::runtime::Handle,
     cfg: EngineConfig,
     events: EventSender,
-    notify: Arc<dyn Fn() + Send + Sync>,
+    notify: Notify,
 ) -> EngineHandle {
     let shared = Arc::new(Shared {
         contacts: cfg.contacts.clone(),
@@ -348,13 +363,14 @@ async fn bind(cfg: &EngineConfig, shared: Arc<Shared>) -> Result<Endpoint, Strin
 
 struct Sink {
     events: EventSender,
-    notify: Arc<dyn Fn() + Send + Sync>,
+    notify: Notify,
 }
 
 impl Sink {
     fn emit(&self, ev: Event) {
+        let attention = ev.wants_attention();
         if self.events.send(ev).is_ok() {
-            (self.notify)();
+            (self.notify)(attention);
         }
     }
 }
@@ -580,7 +596,7 @@ impl Engine {
         tokio::spawn(async move {
             ep.online().await;
             if events.send(Event::Network { online: true }).is_ok() {
-                notify();
+                notify(false);
             }
         });
     }

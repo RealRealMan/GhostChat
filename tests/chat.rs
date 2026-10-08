@@ -37,6 +37,8 @@ async fn connect(a: &mut Node, b: &mut Node) {
 async fn connect_chat_disconnect() {
     let (mut a, mut b) = pair_up().await;
     connect(&mut a, &mut b).await;
+    // Connecting (presence, path, handshake) is not something to alert about.
+    assert_eq!(b.attention_count(), 0);
 
     a.handle.send(Command::SendText {
         to: b.key,
@@ -51,6 +53,9 @@ async fn connect_chat_disconnect() {
         })
         .await;
     assert_eq!(body, "hello bob", "peer text must arrive sanitized");
+    // The engine tells the UI callback a message arrived, so the taskbar can
+    // flash even while the window is minimized and the UI loop is paused.
+    assert_eq!(b.attention_count(), 1);
 
     let bk = b.key;
     a.wait_for(|e| {

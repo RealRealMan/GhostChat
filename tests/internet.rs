@@ -46,7 +46,7 @@ fn start_with(name: &str, relay_only: bool) -> N {
             max_file_size: 1 << 20,
         },
         tx,
-        Arc::new(|| {}),
+        Arc::new(|_| {}),
     );
     N {
         key,

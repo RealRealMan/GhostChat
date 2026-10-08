@@ -4,7 +4,10 @@
 #![allow(dead_code)]
 
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -23,6 +26,8 @@ pub struct Node {
     pub events: mpsc::UnboundedReceiver<Event>,
     pub contacts: Arc<Mutex<ContactBook>>,
     pub downloads: tempfile::TempDir,
+    /// How many events the engine flagged as needing the user's attention.
+    pub attention: Arc<AtomicUsize>,
 }
 
 impl Node {
@@ -43,6 +48,8 @@ impl Node {
         let key = sk.public();
         let contacts = Arc::new(Mutex::new(ContactBook::default()));
         let (tx, events) = mpsc::unbounded_channel();
+        let attention = Arc::new(AtomicUsize::new(0));
+        let counter = attention.clone();
         let handle = engine::spawn(
             &tokio::runtime::Handle::current(),
             EngineConfig {
@@ -57,7 +64,11 @@ impl Node {
                 max_file_size: max,
             },
             tx,
-            Arc::new(|| {}),
+            Arc::new(move |wants| {
+                if wants {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                }
+            }),
         );
         let mut node = Node {
             key,
@@ -65,6 +76,7 @@ impl Node {
             events,
             contacts,
             downloads,
+            attention,
         };
         let addr = node
             .wait_for(|e| match e {
@@ -74,6 +86,10 @@ impl Node {
             .await;
         lookup.add_endpoint_info(addr);
         node
+    }
+
+    pub fn attention_count(&self) -> usize {
+        self.attention.load(Ordering::SeqCst)
     }
 
     pub fn add_contact(&self, other: &Node, codename: &str) {

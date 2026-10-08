@@ -6,12 +6,15 @@
 pub mod commands;
 pub mod core;
 pub mod effects;
-pub mod sound;
+pub mod flash;
 pub mod theme;
 
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -42,8 +45,6 @@ const BOOT_TEXT: &str = concat!(
 [ OK ] Opening secure channel..."
 );
 const AUTO_CONNECT_EVERY: Duration = Duration::from_secs(30);
-/// A burst of messages chirps once, not once per message.
-const CHIRP_MIN_INTERVAL: Duration = Duration::from_millis(1500);
 const MIN_PASSPHRASE: usize = 8;
 
 enum Screen {
@@ -95,10 +96,11 @@ pub struct App {
     rain: effects::Rain,
     /// Replaces the internet configuration (UI tests run on loopback).
     net_override: Option<NetConfig>,
-    beeper: sound::Beeper,
-    last_chirp: Option<Instant>,
-    /// How often the user was alerted (chirp / flash); read by tests.
+    /// How often the taskbar was flashed for the user; read by tests.
     attention_requests: u32,
+    taskbar: flash::TaskbarFlash,
+    /// Mirrors `settings.flash` for the engine callback (another thread).
+    flash_on: Arc<AtomicBool>,
 }
 
 impl App {
@@ -134,6 +136,7 @@ impl App {
         App {
             rt,
             profile,
+            flash_on: Arc::new(AtomicBool::new(settings.flash)),
             settings,
             store,
             lookup: Some(lookup),
@@ -147,9 +150,8 @@ impl App {
             last_frame: Instant::now(),
             rain: effects::Rain::default(),
             net_override,
-            beeper: sound::Beeper::default(),
-            last_chirp: None,
             attention_requests: 0,
+            taskbar: flash::TaskbarFlash::from_window(cc),
         }
     }
 
@@ -348,6 +350,8 @@ impl App {
         let net = self.net_config(&mut notes);
         let (tx, events) = mpsc::unbounded_channel();
         let ctx = self.ctx.clone();
+        let taskbar = self.taskbar.clone();
+        let flash_on = self.flash_on.clone();
         let me = secrets.secret_key().public();
         let engine = engine::spawn(
             &self.rt,
@@ -361,7 +365,14 @@ impl App {
                 max_file_size: self.settings.max_file_mb.saturating_mul(1024 * 1024),
             },
             tx,
-            Arc::new(move || ctx.request_repaint()),
+            Arc::new(move |attention| {
+                // Runs on the network thread, so it works while the window is
+                // minimized and the UI loop is paused.
+                if attention && flash_on.load(Ordering::Relaxed) {
+                    taskbar.flash_if_background();
+                }
+                ctx.request_repaint();
+            }),
         );
         let mut core = Core::new(
             engine,
@@ -507,8 +518,6 @@ impl App {
         }
         self.secrets = None;
         self.lookup = None;
-        // Dropping the beeper stops the audio thread: panic is silent.
-        self.beeper = sound::Beeper::default();
         if self.settings.panic_wipes_identity {
             // Best effort: the app exits either way.
             let _ = self.store.delete();
@@ -560,28 +569,22 @@ impl App {
             .then(|| Duration::from_secs(u64::from(self.settings.idle_minutes) * 60))
     }
 
-    /// Chirp and/or flash the taskbar for something the user has not seen.
-    /// Only used while the window is in the background or the idle screen
-    /// is up; no system notification is shown, so nothing is written to the
-    /// OS notification history.
+    /// Flash the taskbar for something the user has not seen, from the UI
+    /// loop: covers the idle screen and non-Windows platforms. On Windows a
+    /// minimized window is handled by the engine callback (`flash.rs`),
+    /// because this loop does not run then. No system notification is shown,
+    /// so nothing is written to the OS notification history.
     fn request_attention(&mut self, ctx: &egui::Context) {
+        if !self.settings.flash {
+            return;
+        }
         self.attention_requests += 1;
-        if self.settings.flash {
-            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
-                egui::UserAttentionType::Informational,
-            ));
-        }
-        if self.settings.sound
-            && self
-                .last_chirp
-                .is_none_or(|t| t.elapsed() >= CHIRP_MIN_INTERVAL)
-        {
-            self.last_chirp = Some(Instant::now());
-            self.beeper.chirp();
-        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+            egui::UserAttentionType::Informational,
+        ));
     }
 
-    /// Number of chirp/flash alerts so far (for tests).
+    /// Number of taskbar flashes so far (for tests).
     pub fn attention_requests(&self) -> u32 {
         self.attention_requests
     }
@@ -988,6 +991,7 @@ impl App {
         }
 
         if self.settings != settings_before {
+            self.flash_on.store(self.settings.flash, Ordering::Relaxed);
             if self.settings.theme != settings_before.theme {
                 theme::apply(&ctx, self.settings.theme);
             }
@@ -1029,11 +1033,6 @@ impl eframe::App for App {
             if in_background || idle {
                 self.request_attention(ui.ctx());
             }
-        }
-        if let Some(e) = self.beeper.take_error()
-            && let Some(core) = self.core.as_mut()
-        {
-            core.console(LineKind::Warn, format!("[WARN] sound unavailable: {e}"));
         }
         let p = self.settings.theme.palette();
         let now = Instant::now();

@@ -107,7 +107,7 @@ Each person verifies the other separately. If the other person missed your words
 ## 7. Everyday use
 
 - **Chat:** click a name on the left (or `/chat NAME`), type, press Enter. GhostChat connects automatically when both of you are online.
-- **Alerts:** when GhostChat is in the background (or showing the idle screen), a new message, pair request or file offer plays a short chirp and flashes the taskbar icon (Dock icon on macOS). No system pop-up is used, so nothing ends up in the OS notification history. Turn off with `/sound off` or `/flash off`.
+- **Alerts (beta):** when GhostChat is in the background (or showing the idle screen), a new message, pair request or file offer flashes the taskbar icon (Dock icon on macOS). No system pop-up is used, so nothing ends up in the OS notification history. Turn off with `/flash off`. On Windows this also works while GhostChat is minimized; on macOS and Linux only while the window is not minimized.
 - **Send a file:** drag it onto the window, or `/send`. The other person must `/accept` it. Files arrive in `Downloads/GhostChat/`.
 - **Commands start with `/`.** Text without `/` is sent as a message. To send a message that starts with `/`, type `//`.
 
@@ -159,9 +159,6 @@ Each person verifies the other separately. If the other person missed your words
 | `/codename NAME` | `/codename GHOST-01` | Change your codename. Contacts see the new name. |
 | `/mykey` | `/mykey` | Show your Contact Key and picture. `/mykey save` saves it as a `.ghostkey` file. |
 | `/theme NAME` | `/theme amber` | Colours: `green`, `amber` or `ice`. |
-| `/fx on\|off` | `/fx off` | Turn retro effects (scanlines, flicker) on or off. |
-| `/sound on\|off` | `/sound off` | Chirp when something arrives while GhostChat is in the background. |
-| `/flash on\|off` | `/flash off` | Flash the taskbar / Dock icon when something arrives in the background. |
 | `/help` | `/help` | Show all commands. |
 
 ### Safety
@@ -169,7 +166,6 @@ Each person verifies the other separately. If the other person missed your words
 | Command | Example | What it does |
 |---|---|---|
 | `/panic` or **F12** | F12 | Close all connections, wipe everything in memory, exit immediately. |
-| `/panicwipe on\|off` | `/panicwipe on` | Make panic also delete your identity and contacts (default off). You would need to pair again. |
 | `/yes`, `/no` | `/yes` | Answer a confirmation question. |
 | `/quit` | `/quit` | Close GhostChat normally. |
 
@@ -190,7 +186,6 @@ Windows `%APPDATA%\GhostChat\data\` · macOS `~/Library/Application Support/Ghos
 | Key | Default | Meaning |
 |---|---|---|
 | `relay_only` | `false` | Never connect directly, so contacts never see your IP address |
-| `sound` | `true` | Same as `/sound` |
 | `flash` | `true` | Same as `/flash` |
 | `auto_connect` | `true` | Retry contacts every 30 seconds |
 | `idle_minutes` | `5` | Show the Matrix screen after this many idle minutes (0 = off) |
@@ -304,7 +299,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 ## 7. 日常使用
 
 - **傾偈**：按左邊的名字（或 `/chat 名字`），輸入文字，按 Enter。雙方都在線時會自動連線。
-- **提示**：GhostChat 在背景（或顯示閒置畫面）時，收到新訊息、配對請求或檔案，會發出短促提示聲，並令工作列圖示閃動（macOS 是 Dock 圖示跳動）。不會使用系統彈出通知，所以系統通知記錄不會留下任何內容。可用 `/sound off` 或 `/flash off` 關閉。
+- **提示（測試版）**：GhostChat 在背景（或顯示閒置畫面）時，收到新訊息、配對請求或檔案，會令工作列圖示閃動（macOS 是 Dock 圖示跳動）。不會使用系統彈出通知，所以系統通知記錄不會留下任何內容。可用 `/flash off` 關閉。Windows 上即使視窗縮到最小亦有效；macOS 和 Linux 只在視窗未縮到最小時有效。
 - **傳送檔案**：把檔案拖入視窗，或輸入 `/send`。對方要 `/accept` 才會開始傳送。檔案存放在 `下載/GhostChat/`。
 - **指令以 `/` 開頭。** 沒有 `/` 的文字會當作訊息傳給對方。如果訊息本身要以 `/` 開頭，請輸入 `//`。
 - **中文輸入**：可以用倉頡等中文輸入法；輸入指令時記得切換回英文。
@@ -357,9 +352,6 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | `/codename 名字` | `/codename GHOST-01` | 更改你的代號，聯絡人會看到新名字。 |
 | `/mykey` | `/mykey` | 顯示你的聯絡金鑰和圖案。`/mykey save` 另存為 `.ghostkey` 檔案。 |
 | `/theme 名稱` | `/theme amber` | 顏色主題：`green`、`amber` 或 `ice`。 |
-| `/fx on\|off` | `/fx off` | 開關復古效果（掃描線、閃爍）。 |
-| `/sound on\|off` | `/sound off` | GhostChat 在背景時收到訊息會發出提示聲。 |
-| `/flash on\|off` | `/flash off` | GhostChat 在背景時收到訊息會令工作列／Dock 圖示閃動。 |
 | `/help` | `/help` | 顯示所有指令。 |
 
 ### 安全
@@ -367,7 +359,6 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | 指令 | 例子 | 作用 |
 |---|---|---|
 | `/panic` 或 **F12** | F12 | 關閉所有連線、清除記憶體內所有資料，立即退出。 |
-| `/panicwipe on\|off` | `/panicwipe on` | 緊急退出時一併刪除身份和聯絡人（預設關閉），之後要重新配對。 |
 | `/yes`、`/no` | `/yes` | 回答確認問題。 |
 | `/quit` | `/quit` | 正常關閉 GhostChat。 |
 
@@ -388,7 +379,6 @@ Windows `%APPDATA%\GhostChat\data\` · macOS `~/Library/Application Support/Ghos
 | 設定 | 預設 | 意思 |
 |---|---|---|
 | `relay_only` | `false` | 永不直接連線，聯絡人看不到你的 IP 位址 |
-| `sound` | `true` | 等同 `/sound` |
 | `flash` | `true` | 等同 `/flash` |
 | `auto_connect` | `true` | 每 30 秒自動重試連線 |
 | `idle_minutes` | `5` | 閒置多少分鐘後顯示 Matrix 畫面（0 = 關閉） |
@@ -405,7 +395,7 @@ Windows `%APPDATA%\GhostChat\data\` · macOS `~/Library/Application Support/Ghos
 
 Spec: [`PRD-v0.3.md`](PRD-v0.3.md) · Design: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Security: [`SECURITY.md`](SECURITY.md) · Status: [`PROGRESS.md`](PROGRESS.md) · Open decisions: [`OPEN-QUESTIONS.md`](OPEN-QUESTIONS.md)
 
-Requires Rust 1.95+ (tested with 1.98.1). Linux also needs `libgtk-3-dev libxdo-dev libxkbcommon-dev libwayland-dev libdbus-1-dev libasound2-dev`.
+Requires Rust 1.95+ (tested with 1.98.1). Linux also needs `libgtk-3-dev libxdo-dev libxkbcommon-dev libwayland-dev libdbus-1-dev`.
 
 Run:
 

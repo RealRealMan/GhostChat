@@ -26,8 +26,6 @@ fn open(rt: &tokio::runtime::Runtime, name: &str, lookup: &MemoryLookup) -> Win 
     profile
         .save_settings(&ghostchat::storage::Settings {
             downloads_dir: Some(dir.path().join("downloads")),
-            // No audio device needed; alerts are counted by `attention_requests`.
-            sound: false,
             ..Default::default()
         })
         .unwrap();
@@ -173,7 +171,7 @@ fn first_run_pair_verify_chat() {
     bob.wait("message", |b| has(b, "ALICE> hello bob 你好"));
     // Everything so far happened in a focused window: no alert.
     assert_eq!(alice.app().attention_requests(), 0);
-    // Window in the background: a new message chirps / flashes.
+    // Window in the background: a new message flashes the taskbar.
     alice.h.input_mut().focused = false;
     bob.type_line("hi alice");
     alice.wait("reply", |a| has(a, "BOB> hi alice"));
