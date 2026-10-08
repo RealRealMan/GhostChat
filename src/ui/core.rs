@@ -113,6 +113,9 @@ pub struct Core {
     pub file_requests: Vec<FileReq>,
     /// Keyed by (peer, id, incoming).
     pub transfers: HashMap<(PublicKey, u64, bool), Transfer>,
+    /// Something arrived that the user should notice (message, pair request,
+    /// file offer). The app decides whether to chirp / flash and clears it.
+    pub needs_attention: bool,
 }
 
 impl Core {
@@ -144,6 +147,7 @@ impl Core {
             handshakes: Vec::new(),
             file_requests: Vec::new(),
             transfers: HashMap::new(),
+            needs_attention: false,
         }
     }
 
@@ -285,7 +289,10 @@ impl Core {
                     format!("SECURE CHANNEL ESTABLISHED with {name}"),
                 );
             }
-            Event::Text { peer, body } => self.push(Some(peer), LineKind::Theirs, body),
+            Event::Text { peer, body } => {
+                self.needs_attention = true;
+                self.push(Some(peer), LineKind::Theirs, body);
+            }
             Event::Delivery { peer, id, status } => {
                 if let Some(line) = self.convos.get_mut(&Some(peer)).and_then(|l| {
                     l.iter_mut()
@@ -324,6 +331,7 @@ impl Core {
                 codename,
                 outcome,
             } => {
+                self.needs_attention = true;
                 let key_change = matches!(outcome, AddOutcome::KeyChanged { .. });
                 let mut msg = format!("INCOMING PAIR REQUEST: {codename}  —  /accept or /reject");
                 if key_change {
@@ -395,6 +403,7 @@ impl Core {
                 size,
                 executable,
             } => {
+                self.needs_attention = true;
                 let who = self.name(&peer);
                 self.push(
                     Some(peer),
@@ -616,6 +625,22 @@ Only accept it if {who} told you (by voice) to expect it."
                     "effects: scanlines {}, flicker {} — /fx on or /fx off",
                     on_off(settings.scanlines),
                     on_off(settings.flicker)
+                ),
+            ),
+            Cmd::Sound(Some(on)) => settings.sound = on,
+            Cmd::Sound(None) => self.reply(
+                LineKind::System,
+                format!(
+                    "sound for messages in the background: {} — /sound on|off",
+                    on_off(settings.sound)
+                ),
+            ),
+            Cmd::Flash(Some(on)) => settings.flash = on,
+            Cmd::Flash(None) => self.reply(
+                LineKind::System,
+                format!(
+                    "taskbar flash for messages in the background: {} — /flash on|off",
+                    on_off(settings.flash)
                 ),
             ),
             Cmd::Contacts => self.list_contacts(),

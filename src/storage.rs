@@ -105,6 +105,10 @@ pub struct Settings {
     pub theme: ThemeName,
     pub scanlines: bool,
     pub flicker: bool,
+    /// Chirp when a message arrives while the window is in the background.
+    pub sound: bool,
+    /// Flash the taskbar / bounce the Dock icon in the same situation.
+    pub flash: bool,
     /// PRD §20.5: off by default.
     pub panic_wipes_identity: bool,
     pub auto_connect: bool,
@@ -129,6 +133,8 @@ impl Default for Settings {
             theme: ThemeName::Green,
             scanlines: true,
             flicker: false,
+            sound: true,
+            flash: true,
             panic_wipes_identity: false,
             auto_connect: true,
             idle_minutes: 5,

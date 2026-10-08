@@ -6,6 +6,7 @@
 pub mod commands;
 pub mod core;
 pub mod effects;
+pub mod sound;
 pub mod theme;
 
 use std::{
@@ -41,6 +42,8 @@ const BOOT_TEXT: &str = concat!(
 [ OK ] Opening secure channel..."
 );
 const AUTO_CONNECT_EVERY: Duration = Duration::from_secs(30);
+/// A burst of messages chirps once, not once per message.
+const CHIRP_MIN_INTERVAL: Duration = Duration::from_millis(1500);
 const MIN_PASSPHRASE: usize = 8;
 
 enum Screen {
@@ -92,6 +95,10 @@ pub struct App {
     rain: effects::Rain,
     /// Replaces the internet configuration (UI tests run on loopback).
     net_override: Option<NetConfig>,
+    beeper: sound::Beeper,
+    last_chirp: Option<Instant>,
+    /// How often the user was alerted (chirp / flash); read by tests.
+    attention_requests: u32,
 }
 
 impl App {
@@ -140,6 +147,9 @@ impl App {
             last_frame: Instant::now(),
             rain: effects::Rain::default(),
             net_override,
+            beeper: sound::Beeper::default(),
+            last_chirp: None,
+            attention_requests: 0,
         }
     }
 
@@ -497,6 +507,8 @@ impl App {
         }
         self.secrets = None;
         self.lookup = None;
+        // Dropping the beeper stops the audio thread: panic is silent.
+        self.beeper = sound::Beeper::default();
         if self.settings.panic_wipes_identity {
             // Best effort: the app exits either way.
             let _ = self.store.delete();
@@ -541,13 +553,45 @@ impl App {
     // ------------------------------------------------------------------
     // Screens
 
+    /// Time without input before the Matrix idle screen, if it is enabled
+    /// and applies to the current screen.
+    fn idle_limit(&self) -> Option<Duration> {
+        (self.settings.idle_minutes > 0 && matches!(self.screen, Screen::Main))
+            .then(|| Duration::from_secs(u64::from(self.settings.idle_minutes) * 60))
+    }
+
+    /// Chirp and/or flash the taskbar for something the user has not seen.
+    /// Only used while the window is in the background or the idle screen
+    /// is up; no system notification is shown, so nothing is written to the
+    /// OS notification history.
+    fn request_attention(&mut self, ctx: &egui::Context) {
+        self.attention_requests += 1;
+        if self.settings.flash {
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                egui::UserAttentionType::Informational,
+            ));
+        }
+        if self.settings.sound
+            && self
+                .last_chirp
+                .is_none_or(|t| t.elapsed() >= CHIRP_MIN_INTERVAL)
+        {
+            self.last_chirp = Some(Instant::now());
+            self.beeper.chirp();
+        }
+    }
+
+    /// Number of chirp/flash alerts so far (for tests).
+    pub fn attention_requests(&self) -> u32 {
+        self.attention_requests
+    }
+
     /// Matrix rain after `idle_minutes` without input. Also hides the
     /// conversation from someone walking past.
     fn idle_screen(&mut self, ctx: &egui::Context, p: &Palette, dt: f32) {
-        if self.settings.idle_minutes == 0 || !matches!(self.screen, Screen::Main) {
+        let Some(limit) = self.idle_limit() else {
             return;
-        }
-        let limit = Duration::from_secs(u64::from(self.settings.idle_minutes) * 60);
+        };
         let idle_for = self.last_input.elapsed();
         if idle_for < limit {
             ctx.request_repaint_after(limit - idle_for);
@@ -972,6 +1016,24 @@ impl eframe::App for App {
         let profile = self.profile.clone();
         if let Some(core) = self.core.as_mut() {
             core.drain_events(&profile);
+        }
+        let wants_attention = self
+            .core
+            .as_mut()
+            .is_some_and(|c| std::mem::take(&mut c.needs_attention));
+        if wants_attention {
+            let in_background = !ui.input(|i| i.focused);
+            let idle = self
+                .idle_limit()
+                .is_some_and(|limit| self.last_input.elapsed() >= limit);
+            if in_background || idle {
+                self.request_attention(ui.ctx());
+            }
+        }
+        if let Some(e) = self.beeper.take_error()
+            && let Some(core) = self.core.as_mut()
+        {
+            core.console(LineKind::Warn, format!("[WARN] sound unavailable: {e}"));
         }
         let p = self.settings.theme.palette();
         let now = Instant::now();

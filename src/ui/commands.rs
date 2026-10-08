@@ -27,6 +27,8 @@ pub enum Cmd {
     },
     Theme(Option<String>),
     Effects(Option<bool>),
+    Sound(Option<bool>),
+    Flash(Option<bool>),
     Contacts,
     Clear,
     Panic,
@@ -82,6 +84,14 @@ pub const HELP: &[(&str, &str)] = &[
     ("/theme green|amber|ice", "change colours"),
     ("/fx on|off", "retro effects (scanlines, flicker)"),
     (
+        "/sound on|off",
+        "chirp when a message arrives while GhostChat is in the background",
+    ),
+    (
+        "/flash on|off",
+        "flash the taskbar / Dock icon when a message arrives in the background",
+    ),
+    (
         "/clear",
         "wipe this conversation from the screen and memory",
     ),
@@ -99,6 +109,14 @@ pub const HELP: &[(&str, &str)] = &[
 fn arg(rest: &str) -> Option<String> {
     let r = rest.trim();
     (!r.is_empty()).then(|| r.to_string())
+}
+
+fn on_off_arg(rest: &str) -> Option<bool> {
+    match rest.trim().to_ascii_lowercase().as_str() {
+        "on" => Some(true),
+        "off" => Some(false),
+        _ => None,
+    }
 }
 
 pub fn parse(input: &str) -> Cmd {
@@ -146,19 +164,13 @@ pub fn parse(input: &str) -> Cmd {
             save: rest.trim().eq_ignore_ascii_case("save"),
         },
         "theme" => Cmd::Theme(arg(rest)),
-        "fx" | "effects" => Cmd::Effects(match rest.trim().to_ascii_lowercase().as_str() {
-            "on" => Some(true),
-            "off" => Some(false),
-            _ => None,
-        }),
+        "fx" | "effects" => Cmd::Effects(on_off_arg(rest)),
+        "sound" => Cmd::Sound(on_off_arg(rest)),
+        "flash" => Cmd::Flash(on_off_arg(rest)),
         "contacts" | "list" => Cmd::Contacts,
         "clear" | "cls" => Cmd::Clear,
         "panic" => Cmd::Panic,
-        "panicwipe" => Cmd::PanicWipe(match rest.trim().to_ascii_lowercase().as_str() {
-            "on" => Some(true),
-            "off" => Some(false),
-            _ => None,
-        }),
+        "panicwipe" => Cmd::PanicWipe(on_off_arg(rest)),
         "quit" | "exit" => Cmd::Quit,
         "yes" | "y" => Cmd::Yes,
         "no" | "n" => Cmd::No,
@@ -219,6 +231,17 @@ mod tests {
             }
         );
         assert!(matches!(parse("/alias"), Cmd::Unknown(_)));
+    }
+
+    #[test]
+    fn on_off_toggles() {
+        assert_eq!(parse("/sound off"), Cmd::Sound(Some(false)));
+        assert_eq!(parse("/sound ON"), Cmd::Sound(Some(true)));
+        assert_eq!(parse("/sound"), Cmd::Sound(None));
+        assert_eq!(parse("/flash on"), Cmd::Flash(Some(true)));
+        assert_eq!(parse("/flash maybe"), Cmd::Flash(None));
+        assert_eq!(parse("/fx off"), Cmd::Effects(Some(false)));
+        assert_eq!(parse("/panicwipe on"), Cmd::PanicWipe(Some(true)));
     }
 
     #[test]
