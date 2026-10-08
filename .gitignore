@@ -1,0 +1,39 @@
+# Build output
+/target
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+/fuzz/coverage
+/dist
+**/*.rs.bk
+*.pdb
+
+# GhostChat user data (normally in the OS data dir; never commit if one lands here)
+*.ghostkey
+contacts.bin
+contacts.bin.damaged
+vault.bin
+
+# Secrets and signing material (e.g. a future code-signing certificate)
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+
+# Logs
+*.log
+
+# Local tool settings
+.claude/settings.local.json
+.vscode/
+.idea/
+*.swp
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini

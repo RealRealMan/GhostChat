@@ -1,0 +1,39 @@
+# Coverage-guided fuzzing (needs nightly): `cargo +nightly fuzz run contact_key`
+# Not run locally (no nightly toolchain on the dev machine); see ci.yml.
+[package]
+name = "ghostchat-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+ghostchat = { path = ".." }
+
+# Keep this crate out of any parent workspace.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "contact_key"
+path = "fuzz_targets/contact_key.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "chat_frame"
+path = "fuzz_targets/chat_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pair_frame"
+path = "fuzz_targets/pair_frame.rs"
+test = false
+doc = false
+bench = false

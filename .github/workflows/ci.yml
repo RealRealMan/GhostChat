@@ -1,0 +1,59 @@
+# Checks on every push / PR: fmt, clippy, tests, dependency audit.
+# NOTE: written locally and NOT yet run on GitHub (no remote exists).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxdo-dev libxkbcommon-dev \
+            libwayland-dev libdbus-1-dev mesa-vulkan-drivers
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      # Real-network tests need n0's public relay; run them but do not block on
+      # transient internet problems in CI.
+      - run: cargo test --test internet -- --ignored
+        continue-on-error: true
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-audit --locked
+      - run: cargo audit
+
+  fuzz:
+    # cargo-fuzz needs nightly. Short smoke run of each target.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cargo-fuzz --locked
+      - run: |
+          for t in contact_key chat_frame pair_frame; do
+            cargo +nightly fuzz run "$t" -- -max_total_time=60
+          done
