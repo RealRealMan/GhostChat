@@ -48,6 +48,8 @@ repository, so per-phase commits no longer exist.
 
 ### Manual test by the owner (two Windows PCs)
 
+- The two PCs were on **different networks** (one on a phone hotspot), so the
+  connection went across the internet through NAT, not over a local network.
 - Install, codename, `/invite` → `/add` → `/accept`, safety-word verification,
   chat, file transfer, panic: all working.
 - Cangjie (Chinese IME) input works after the IME fix below.
@@ -57,8 +59,6 @@ repository, so per-phase commits no longer exist.
 - **macOS and Linux installs**: packages build in CI but have not been
   installed or run on a real Mac or Linux machine (Gatekeeper flow, Keychain
   prompt, AppImage/`.deb` install, Secret Service fallback, Kali).
-- **Two different home networks**: confirm that a test has been done with the
-  two PCs on different networks (e.g. one on a phone hotspot).
 - **Uninstaller "also delete identity" tick box**: only the silent (unticked)
   path was tested automatically.
 - **Non-technical tester install** (PRD §17 manual test): not done.
