@@ -8,7 +8,8 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub const CHAT_ALPN: &[u8] = b"ghostchat/1";
 pub const PAIR_ALPN: &[u8] = b"ghostchat-pair/1";
-pub const PROTOCOL_VERSION: u16 = 1;
+/// v2 added voice calls; a v1 peer would not understand the call frames.
+pub const PROTOCOL_VERSION: u16 = 2;
 
 /// Maximum chat message body (PRD §9).
 pub const MAX_TEXT_BYTES: usize = 64 * 1024;
@@ -58,6 +59,17 @@ pub enum Frame {
         ok: bool,
     },
     Bye,
+    /// Start a voice call. `id` tags the call's audio datagrams.
+    CallOffer {
+        id: u32,
+    },
+    CallAccept {
+        id: u32,
+    },
+    /// Decline, cancel or hang up.
+    CallEnd {
+        id: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

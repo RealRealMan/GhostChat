@@ -36,6 +36,16 @@ terminal), iroh 1.3 (QUIC + TLS 1.3) for transport. Spec: `PRD-v0.3.md`.
   - A notification sound was tried and removed (too harsh, and it only
     played once the window was reopened).
 
+## Work in progress: branch `feature/voice` (prototype)
+
+1-to-1 voice calls (`/call`, `/answer`, `/hangup`, `/mute`), `src/voice/`:
+cpal capture/playback → sonora (echo cancellation, noise suppression, AGC)
+→ Opus 32 kbit/s **constant bitrate** (VBR would leak speech patterns) →
+QUIC datagrams on the existing iroh connection. Call signaling uses new
+control frames, so `PROTOCOL_VERSION` is 2 (v1 peers get a clear "update"
+message). Building needs CMake (Opus). Audio quality, echo and latency have
+not been judged by ear on two real PCs yet — that is the next step.
+
 ## Next steps on a Mac
 
 1. Setup: install Xcode Command Line Tools (`xcode-select --install`) and

@@ -21,6 +21,10 @@ pub enum Cmd {
         alias: Option<String>,
     },
     Send(Option<String>),
+    Call(Option<String>),
+    Answer,
+    Hangup,
+    Mute(Option<bool>),
     Codename(Option<String>),
     MyKey {
         save: bool,
@@ -68,6 +72,19 @@ pub const HELP: &[(&str, &str)] = &[
     (
         "/send [FILE]",
         "send a file (or drag a file onto the window)",
+    ),
+    (
+        "/call [NAME]",
+        "start a voice call (E2EE) with a connected contact",
+    ),
+    ("/answer", "answer an incoming call"),
+    (
+        "/hangup",
+        "end the call, cancel it, or decline an incoming call",
+    ),
+    (
+        "/mute [on|off]",
+        "mute or unmute your microphone during calls",
     ),
     ("/codename NAME", "change your codename"),
     (
@@ -154,6 +171,10 @@ pub fn parse(input: &str) -> Cmd {
             }
         }
         "send" | "file" => Cmd::Send(arg(rest)),
+        "call" => Cmd::Call(arg(rest)),
+        "answer" | "pickup" => Cmd::Answer,
+        "hangup" | "endcall" => Cmd::Hangup,
+        "mute" => Cmd::Mute(on_off_arg(rest)),
         "codename" | "nick" => Cmd::Codename(arg(rest)),
         "mykey" | "key" => Cmd::MyKey {
             save: rest.trim().eq_ignore_ascii_case("save"),
@@ -234,6 +255,16 @@ mod tests {
         assert_eq!(parse("/flash maybe"), Cmd::Flash(None));
         assert_eq!(parse("/fx off"), Cmd::Effects(Some(false)));
         assert_eq!(parse("/panicwipe on"), Cmd::PanicWipe(Some(true)));
+    }
+
+    #[test]
+    fn call_commands() {
+        assert_eq!(parse("/call NIGHTOWL"), Cmd::Call(Some("NIGHTOWL".into())));
+        assert_eq!(parse("/call"), Cmd::Call(None));
+        assert_eq!(parse("/answer"), Cmd::Answer);
+        assert_eq!(parse("/hangup"), Cmd::Hangup);
+        assert_eq!(parse("/mute"), Cmd::Mute(None));
+        assert_eq!(parse("/mute off"), Cmd::Mute(Some(false)));
     }
 
     #[test]

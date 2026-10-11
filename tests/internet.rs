@@ -44,6 +44,7 @@ fn start_with(name: &str, relay_only: bool) -> N {
             auto_connect: None,
             downloads: std::env::temp_dir(),
             max_file_size: 1 << 20,
+            audio: ghostchat::voice::AudioBackend::Silent,
         },
         tx,
         Arc::new(|_| {}),

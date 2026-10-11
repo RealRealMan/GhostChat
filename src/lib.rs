@@ -11,3 +11,4 @@ pub mod sanitize;
 pub mod storage;
 pub mod transfer;
 pub mod ui;
+pub mod voice;

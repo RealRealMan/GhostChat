@@ -21,7 +21,7 @@ use crate::{
     codename,
     contact_key::{self, ContactKey},
     contacts::{AddOutcome, ContactBook, Trust},
-    engine::{Command, Delivery, EngineHandle, Event, PathKind, Presence},
+    engine::{CallState, Command, Delivery, EngineHandle, Event, PathKind, Presence},
     safety, sanitize,
     storage::{self, Profile, Settings},
     transfer::human_size,
@@ -116,6 +116,10 @@ pub struct Core {
     /// Something arrived that the user should notice (message, pair request,
     /// file offer). The app decides whether to flash the taskbar and clears it.
     pub needs_attention: bool,
+    /// The current voice call: contact, state, and when that state began.
+    pub call: Option<(PublicKey, CallState, Instant)>,
+    /// Microphone muted for calls (kept across calls).
+    pub muted: bool,
 }
 
 impl Core {
@@ -148,6 +152,8 @@ impl Core {
             file_requests: Vec::new(),
             transfers: HashMap::new(),
             needs_attention: false,
+            call: None,
+            muted: false,
         }
     }
 
@@ -174,6 +180,43 @@ impl Core {
             kind,
             text: text.into(),
         });
+    }
+
+    /// A call line goes to the contact's conversation and, if the user is
+    /// looking somewhere else, there too.
+    fn call_line(&mut self, peer: PublicKey, kind: LineKind, text: String) {
+        if self.selected != Some(peer) {
+            let here = self.selected;
+            self.push(here, kind.clone(), text.clone());
+        }
+        self.push(Some(peer), kind, text);
+    }
+
+    fn on_call(&mut self, peer: PublicKey, state: CallState) {
+        let name = self.name(&peer);
+        let (kind, text) = match &state {
+            CallState::Calling => (
+                LineKind::System,
+                format!("CALLING {name}... (/hangup to cancel)"),
+            ),
+            CallState::Ringing => (
+                LineKind::Alert,
+                format!("INCOMING CALL from {name}  —  /answer or /hangup"),
+            ),
+            CallState::Active => (
+                LineKind::Ok,
+                format!("[ OK ] CALL CONNECTED with {name} · E2EE · /mute · /hangup"),
+            ),
+            CallState::Ended(reason) => (
+                LineKind::System,
+                format!("CALL ENDED with {name} ({})", sanitize::text(reason)),
+            ),
+        };
+        self.call = match state {
+            CallState::Ended(_) => None,
+            s => Some((peer, s, Instant::now())),
+        };
+        self.call_line(peer, kind, text);
     }
 
     pub fn console(&mut self, kind: LineKind, text: impl Into<String>) {
@@ -473,6 +516,7 @@ Only accept it if {who} told you (by voice) to expect it."
                 };
                 self.push(Some(peer), kind, text);
             }
+            Event::Call { peer, state } => self.on_call(peer, state),
             Event::Notice(n) => self.console(LineKind::System, n),
             Event::Warning(w) => self.console(LineKind::Warn, w),
             Event::Stopped => {}
@@ -631,6 +675,38 @@ Only accept it if {who} told you (by voice) to expect it."
                     on_off(settings.flash)
                 ),
             ),
+            Cmd::Call(name) => {
+                if let Some(peer) = self.resolve(name.as_deref()) {
+                    self.engine.send(Command::Call(peer));
+                }
+            }
+            Cmd::Answer => match &self.call {
+                Some((peer, CallState::Ringing, _)) => self.engine.send(Command::AnswerCall {
+                    peer: *peer,
+                    accept: true,
+                }),
+                _ => self.reply(LineKind::Warn, "no incoming call to answer"),
+            },
+            Cmd::Hangup => match &self.call {
+                Some((peer, CallState::Ringing, _)) => self.engine.send(Command::AnswerCall {
+                    peer: *peer,
+                    accept: false,
+                }),
+                Some((peer, _, _)) => self.engine.send(Command::Hangup(*peer)),
+                None => self.reply(LineKind::Warn, "no call to end"),
+            },
+            Cmd::Mute(on) => {
+                self.muted = on.unwrap_or(!self.muted);
+                self.engine.send(Command::MuteCall(self.muted));
+                self.reply(
+                    LineKind::System,
+                    if self.muted {
+                        "microphone MUTED for calls — /mute to unmute"
+                    } else {
+                        "microphone on for calls"
+                    },
+                );
+            }
             Cmd::Contacts => self.list_contacts(),
             Cmd::Clear => {
                 self.convos.remove(&self.selected);
@@ -976,6 +1052,22 @@ Only accept it if {who} told you (by voice) to expect it."
                     RichText::new(format!("PAIRING OPEN {}:{:02}", left / 60, left % 60))
                         .color(p.warn),
                 );
+            }
+            if let Some((peer, state, since)) = &self.call {
+                let name = self.name(peer);
+                let (text, color) = match state {
+                    CallState::Calling => (format!("CALLING {name}..."), p.warn),
+                    CallState::Ringing => (format!("INCOMING CALL: {name}"), p.danger),
+                    _ => {
+                        let t = since.elapsed().as_secs();
+                        let mute = if self.muted { " · MUTED" } else { "" };
+                        (
+                            format!("CALL {name} {}:{:02}{mute}", t / 60, t % 60),
+                            p.bright,
+                        )
+                    }
+                };
+                ui.label(RichText::new(text).color(color).strong());
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let (net, color) = if self.net_online {

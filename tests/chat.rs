@@ -5,7 +5,7 @@ mod common;
 use std::time::Duration;
 
 use common::Node;
-use ghostchat::engine::{Command, Delivery, Event, Presence};
+use ghostchat::engine::{CallState, Command, Delivery, Event, Presence};
 use iroh::address_lookup::MemoryLookup;
 
 async fn pair_up() -> (Node, Node) {
@@ -221,4 +221,77 @@ async fn codename_change_is_announced() {
         .await;
     assert_eq!((old.as_str(), new.as_str()), ("ALICE", "GHOST-01"));
     assert_eq!(b.contacts.lock().unwrap().display_name(&ak), "GHOST-01");
+}
+
+/// Waits for this node's next call state with `peer`.
+async fn call_state(n: &mut Node, peer: iroh::PublicKey) -> CallState {
+    n.wait_for(|e| match e {
+        Event::Call { peer: p, state } if *p == peer => Some(state.clone()),
+        _ => None,
+    })
+    .await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn voice_call_ring_answer_hangup() {
+    let (mut a, mut b) = pair_up().await;
+    connect(&mut a, &mut b).await;
+    let (ak, bk) = (a.key, b.key);
+
+    a.handle.send(Command::Call(bk));
+    assert_eq!(call_state(&mut a, bk).await, CallState::Calling);
+    assert_eq!(call_state(&mut b, ak).await, CallState::Ringing);
+    // An incoming call flashes the taskbar like a message does.
+    assert_eq!(b.attention_count(), 1);
+
+    b.handle.send(Command::AnswerCall {
+        peer: ak,
+        accept: true,
+    });
+    assert_eq!(call_state(&mut b, ak).await, CallState::Active);
+    assert_eq!(call_state(&mut a, bk).await, CallState::Active);
+
+    // Audio (silence) flows for a moment; then the caller hangs up.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    a.handle.send(Command::Hangup(bk));
+    assert_eq!(
+        call_state(&mut a, bk).await,
+        CallState::Ended("call ended".into())
+    );
+    assert_eq!(
+        call_state(&mut b, ak).await,
+        CallState::Ended("the contact hung up".into())
+    );
+
+    // The chat session survives the call.
+    a.handle.send(Command::SendText {
+        to: bk,
+        id: 1,
+        body: "still here".into(),
+    });
+    b.wait_for(|e| matches!(e, Event::Text { body, .. } if body == "still here").then_some(()))
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn voice_call_declined() {
+    let (mut a, mut b) = pair_up().await;
+    connect(&mut a, &mut b).await;
+    let (ak, bk) = (a.key, b.key);
+
+    a.handle.send(Command::Call(bk));
+    assert_eq!(call_state(&mut b, ak).await, CallState::Ringing);
+    b.handle.send(Command::AnswerCall {
+        peer: ak,
+        accept: false,
+    });
+    assert_eq!(
+        call_state(&mut b, ak).await,
+        CallState::Ended("call declined".into())
+    );
+    assert_eq!(call_state(&mut a, bk).await, CallState::Calling);
+    assert_eq!(
+        call_state(&mut a, bk).await,
+        CallState::Ended("declined or busy".into())
+    );
 }

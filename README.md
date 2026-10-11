@@ -150,6 +150,10 @@ Each person verifies the other separately. If the other person missed your words
 | `/connect [NAME]` | `/connect NIGHTOWL` | Connect now instead of waiting for the automatic retry. |
 | `/disconnect [NAME]` | `/disconnect` | Close the secure channel. |
 | `/send [FILE]` | `/send` | Send a file. Without a file name, a file picker opens. |
+| `/call [NAME]` | `/call NIGHTOWL` | *(experimental)* Start an end-to-end encrypted voice call with a connected contact. |
+| `/answer` | `/answer` | Answer an incoming call. |
+| `/hangup` | `/hangup` | End the call, cancel it, or decline an incoming call. |
+| `/mute [on\|off]` | `/mute` | Mute or unmute your microphone during calls. |
 | `/clear` | `/clear` | Wipe the open conversation from screen and memory. |
 
 ### You and the look
@@ -343,6 +347,10 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | `/connect [名字]` | `/connect NIGHTOWL` | 立即連線，不用等自動重試。 |
 | `/disconnect [名字]` | `/disconnect` | 關閉加密通道。 |
 | `/send [檔案]` | `/send` | 傳送檔案。沒有指定檔案時會打開選擇視窗。 |
+| `/call [名字]` | `/call NIGHTOWL` | *（試驗功能）* 與已連線的聯絡人進行端對端加密語音通話。 |
+| `/answer` | `/answer` | 接聽來電。 |
+| `/hangup` | `/hangup` | 掛線、取消撥出，或拒絕來電。 |
+| `/mute [on\|off]` | `/mute` | 通話時開關麥克風靜音。 |
 | `/clear` | `/clear` | 從畫面和記憶體清除目前對話。 |
 
 ### 個人與外觀
@@ -395,7 +403,7 @@ Windows `%APPDATA%\GhostChat\data\` · macOS `~/Library/Application Support/Ghos
 
 Spec: [`PRD-v0.3.md`](PRD-v0.3.md) · Design: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Security: [`SECURITY.md`](SECURITY.md) · Status: [`PROGRESS.md`](PROGRESS.md) · Open decisions: [`OPEN-QUESTIONS.md`](OPEN-QUESTIONS.md)
 
-Requires Rust 1.95+ (tested with 1.98.1). Linux also needs `libgtk-3-dev libxdo-dev libxkbcommon-dev libwayland-dev libdbus-1-dev`.
+Requires Rust 1.95+ (tested with 1.98.1) and **CMake** (builds the Opus codec for voice calls; Windows: `winget install Kitware.CMake`, macOS: `brew install cmake`). Linux also needs `cmake libgtk-3-dev libxdo-dev libxkbcommon-dev libwayland-dev libdbus-1-dev libasound2-dev`.
 
 Run:
 

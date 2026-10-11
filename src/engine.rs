@@ -25,6 +25,7 @@ use crate::{
     proto::{self, CHAT_ALPN, Frame, PAIR_ALPN, PROTOCOL_VERSION, PairFrame, close},
     sanitize,
     transfer::{self, Offer},
+    voice::{self, AudioBackend},
 };
 
 const DIAL_TIMEOUT: Duration = Duration::from_secs(15);
@@ -38,6 +39,8 @@ const MAX_PENDING_PAIRS: usize = 8;
 const MAX_PENDING_FILES: usize = 16;
 /// How long an invitee waits for the inviter to press accept.
 const PAIR_RESPONSE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+/// An unanswered call is cancelled after this.
+const RING_TIMEOUT: Duration = Duration::from_secs(45);
 
 /// Where to find peers. `Internet` uses n0 (or self-hosted) relay + discovery.
 #[derive(Debug, Clone)]
@@ -66,6 +69,18 @@ pub struct EngineConfig {
     /// Folder for received files.
     pub downloads: std::path::PathBuf,
     pub max_file_size: u64,
+    /// Sound card for voice calls ([`AudioBackend::Silent`] in tests).
+    pub audio: AudioBackend,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CallState {
+    /// We are calling; the contact has not answered yet.
+    Calling,
+    /// The contact is calling us.
+    Ringing,
+    Active,
+    Ended(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,6 +138,17 @@ pub enum Command {
     /// The UI changed the contact book (verify/remove): drop sessions that are
     /// no longer allowed.
     ContactsUpdated,
+    /// Start a voice call with a connected contact (`/call`).
+    Call(PublicKey),
+    /// Answer an incoming call.
+    AnswerCall {
+        peer: PublicKey,
+        accept: bool,
+    },
+    /// Hang up, or cancel a call that has not been answered yet.
+    Hangup(PublicKey),
+    /// Mute or unmute the microphone (also applies to later calls).
+    MuteCall(bool),
     /// Close everything. `panic` uses the PANIC close code.
     Shutdown {
         panic: bool,
@@ -210,6 +236,10 @@ pub enum Event {
         incoming: bool,
         result: Result<Option<PathBuf>, String>,
     },
+    Call {
+        peer: PublicKey,
+        state: CallState,
+    },
     Notice(String),
     Warning(String),
     Stopped,
@@ -221,7 +251,13 @@ impl Event {
     pub fn wants_attention(&self) -> bool {
         matches!(
             self,
-            Event::Text { .. } | Event::PairRequest { .. } | Event::FileIncoming { .. }
+            Event::Text { .. }
+                | Event::PairRequest { .. }
+                | Event::FileIncoming { .. }
+                | Event::Call {
+                    state: CallState::Ringing,
+                    ..
+                }
         )
     }
 }
@@ -435,6 +471,12 @@ enum Internal {
         id: u64,
         result: Result<PathBuf, String>,
     },
+    /// The audio of an active call failed (device unplugged, ...).
+    CallFailed {
+        peer: PublicKey,
+        id: u32,
+        reason: String,
+    },
 }
 
 struct OutgoingFile {
@@ -455,6 +497,44 @@ struct Session {
     /// Accepted files whose data stream has not arrived yet.
     expecting: HashMap<u64, (PathBuf, Offer)>,
     receiving: usize,
+    call: Option<CallSlot>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CallPhase {
+    Calling,
+    Ringing,
+    Active,
+}
+
+/// The voice call with one contact. Dropping it stops the audio.
+struct CallSlot {
+    id: u32,
+    phase: CallPhase,
+    since: Instant,
+    media: Option<voice::Call>,
+    /// Forwards the connection's datagrams to `media`.
+    reader: Option<JoinHandle<()>>,
+}
+
+impl CallSlot {
+    fn new(id: u32, phase: CallPhase) -> Self {
+        CallSlot {
+            id,
+            phase,
+            since: Instant::now(),
+            media: None,
+            reader: None,
+        }
+    }
+}
+
+impl Drop for CallSlot {
+    fn drop(&mut self) {
+        if let Some(t) = &self.reader {
+            t.abort();
+        }
+    }
 }
 
 impl Session {
@@ -491,6 +571,8 @@ struct Engine {
     downloads: PathBuf,
     max_file_size: u64,
     next_file_id: u64,
+    audio: AudioBackend,
+    muted: bool,
 }
 
 impl Engine {
@@ -511,6 +593,8 @@ impl Engine {
             downloads: cfg.downloads,
             max_file_size: cfg.max_file_size,
             next_file_id: 1,
+            audio: cfg.audio,
+            muted: false,
         }
     }
 
@@ -547,6 +631,7 @@ impl Engine {
                 _ = path_tick.tick() => {
                     self.poll_paths();
                     self.check_pairing_window();
+                    self.check_ring_timeouts();
                 }
                 _ = auto_tick.tick(), if self.auto_connect.is_some() => self.auto_dial(),
             }
@@ -634,6 +719,10 @@ impl Engine {
             Command::SendFile { to, path } => self.offer_file(to, path),
             Command::FileDecision { peer, id, accept } => self.decide_file(peer, id, accept),
             Command::PairDecision { peer, accept } => self.pair_decide(peer, accept),
+            Command::Call(peer) => self.start_call(peer),
+            Command::AnswerCall { peer, accept } => self.answer_call(peer, accept),
+            Command::Hangup(peer) => self.end_call(peer, true, "call ended"),
+            Command::MuteCall(muted) => self.set_muted(muted),
             Command::Shutdown { .. } => unreachable!("handled in run"),
         }
     }
@@ -947,6 +1036,194 @@ impl Engine {
         });
     }
 
+    /// The contact we are in a call with (ringing or active), if any.
+    fn call_peer(&self) -> Option<PublicKey> {
+        self.sessions
+            .iter()
+            .find(|(_, s)| s.call.is_some())
+            .map(|(k, _)| *k)
+    }
+
+    fn start_call(&mut self, peer: PublicKey) {
+        let name = self.name(&peer);
+        if self.call_peer().is_some() {
+            self.sink
+                .emit(Event::Warning("already in a call — /hangup first".into()));
+            return;
+        }
+        let Some(s) = self.sessions.get_mut(&peer) else {
+            self.sink.emit(Event::Warning(format!(
+                "{name} is not connected — cannot call"
+            )));
+            return;
+        };
+        let id = rand::random::<u32>();
+        let _ = s.out.send(Frame::CallOffer { id });
+        s.call = Some(CallSlot::new(id, CallPhase::Calling));
+        self.sink.emit(Event::Call {
+            peer,
+            state: CallState::Calling,
+        });
+    }
+
+    fn on_call_offer(&mut self, peer: PublicKey, id: u32) {
+        let busy = self.call_peer().is_some();
+        let Some(s) = self.sessions.get_mut(&peer) else {
+            return;
+        };
+        if busy {
+            // One call at a time. This also resolves both sides calling each
+            // other at the same moment: both offers are declined.
+            let _ = s.out.send(Frame::CallEnd { id });
+            return;
+        }
+        s.call = Some(CallSlot::new(id, CallPhase::Ringing));
+        self.sink.emit(Event::Call {
+            peer,
+            state: CallState::Ringing,
+        });
+    }
+
+    fn answer_call(&mut self, peer: PublicKey, accept: bool) {
+        let ringing = self
+            .sessions
+            .get(&peer)
+            .and_then(|s| s.call.as_ref())
+            .filter(|c| c.phase == CallPhase::Ringing)
+            .map(|c| c.id);
+        let Some(id) = ringing else {
+            self.sink
+                .emit(Event::Warning("no incoming call to answer".into()));
+            return;
+        };
+        if !accept {
+            self.end_call(peer, true, "call declined");
+            return;
+        }
+        if let Some(s) = self.sessions.get(&peer) {
+            let _ = s.out.send(Frame::CallAccept { id });
+        }
+        self.activate_call(peer);
+    }
+
+    fn on_call_accepted(&mut self, peer: PublicKey, id: u32) {
+        let calling = self
+            .sessions
+            .get(&peer)
+            .and_then(|s| s.call.as_ref())
+            .is_some_and(|c| c.id == id && c.phase == CallPhase::Calling);
+        if calling {
+            self.activate_call(peer);
+        }
+    }
+
+    /// Opens the microphone and speakers and streams audio over the
+    /// connection's datagrams.
+    fn activate_call(&mut self, peer: PublicKey) {
+        let Some(s) = self.sessions.get(&peer) else {
+            return;
+        };
+        let Some(id) = s.call.as_ref().map(|c| c.id) else {
+            return;
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let conn = s.conn.clone();
+        let reader = tokio::spawn(async move {
+            while let Ok(d) = conn.read_datagram().await {
+                if tx.send(d.to_vec()).is_err() {
+                    break;
+                }
+            }
+        });
+        let send_conn = s.conn.clone();
+        // Audio is real-time: a datagram that cannot be sent right now
+        // (congestion) is simply lost, and the receiver conceals the gap.
+        let send: voice::SendPacket = Box::new(move |p| {
+            let _ = send_conn.send_datagram(p.into());
+        });
+        let internal = self.internal_tx.clone();
+        let on_fail: voice::OnFail = Box::new(move |reason| {
+            let _ = internal.send(Internal::CallFailed { peer, id, reason });
+        });
+        // Blocks this task briefly while the sound card opens.
+        let started = voice::Call::start(id, self.audio, send, rx, on_fail);
+        match started {
+            Ok(media) => {
+                media.set_muted(self.muted);
+                if let Some(call) = self.sessions.get_mut(&peer).and_then(|s| s.call.as_mut()) {
+                    call.media = Some(media);
+                    call.reader = Some(reader);
+                    call.phase = CallPhase::Active;
+                    call.since = Instant::now();
+                }
+                self.sink.emit(Event::Call {
+                    peer,
+                    state: CallState::Active,
+                });
+            }
+            Err(e) => {
+                reader.abort();
+                self.end_call(peer, true, &format!("audio unavailable: {e}"));
+            }
+        }
+    }
+
+    fn on_call_end(&mut self, peer: PublicKey, id: u32) {
+        let phase = match self.sessions.get(&peer).and_then(|s| s.call.as_ref()) {
+            Some(c) if c.id == id => c.phase,
+            _ => return,
+        };
+        let reason = match phase {
+            CallPhase::Calling => "declined or busy",
+            CallPhase::Ringing => "the caller hung up",
+            CallPhase::Active => "the contact hung up",
+        };
+        self.end_call(peer, false, reason);
+    }
+
+    /// Ends the call with `peer`. `tell_peer` is false when the peer ended it.
+    fn end_call(&mut self, peer: PublicKey, tell_peer: bool, reason: &str) {
+        let Some(s) = self.sessions.get_mut(&peer) else {
+            return;
+        };
+        let Some(call) = s.call.take() else {
+            return;
+        };
+        if tell_peer {
+            let _ = s.out.send(Frame::CallEnd { id: call.id });
+        }
+        drop(call);
+        self.sink.emit(Event::Call {
+            peer,
+            state: CallState::Ended(reason.into()),
+        });
+    }
+
+    fn set_muted(&mut self, muted: bool) {
+        self.muted = muted;
+        for s in self.sessions.values() {
+            if let Some(media) = s.call.as_ref().and_then(|c| c.media.as_ref()) {
+                media.set_muted(muted);
+            }
+        }
+    }
+
+    fn check_ring_timeouts(&mut self) {
+        let expired: Vec<PublicKey> = self
+            .sessions
+            .iter()
+            .filter(|(_, s)| {
+                s.call.as_ref().is_some_and(|c| {
+                    c.phase == CallPhase::Calling && c.since.elapsed() >= RING_TIMEOUT
+                })
+            })
+            .map(|(k, _)| *k)
+            .collect();
+        for peer in expired {
+            self.end_call(peer, true, "no answer");
+        }
+    }
+
     fn check_pairing_window(&mut self) {
         let open = self.shared.pairing_open();
         if open != self.pairing_was_open {
@@ -1210,6 +1487,16 @@ impl Engine {
                     self.end_session(peer, s, close::NORMAL, Some(reason));
                 }
             }
+            Internal::CallFailed { peer, id, reason } => {
+                let current = self
+                    .sessions
+                    .get(&peer)
+                    .and_then(|s| s.call.as_ref())
+                    .is_some_and(|c| c.id == id);
+                if current {
+                    self.end_call(peer, true, &format!("audio failed: {reason}"));
+                }
+            }
         }
     }
 
@@ -1240,6 +1527,12 @@ impl Engine {
             }
             let old = self.sessions.remove(&peer).expect("checked");
             self.fail_unacked(peer, &old);
+            if old.call.is_some() {
+                self.sink.emit(Event::Call {
+                    peer,
+                    state: CallState::Ended("connection replaced".into()),
+                });
+            }
             old.conn.close(close::DUPLICATE.into(), b"");
         }
 
@@ -1355,6 +1648,7 @@ impl Engine {
             offers: HashMap::new(),
             expecting: HashMap::new(),
             receiving: 0,
+            call: None,
         }
     }
 
@@ -1424,6 +1718,9 @@ impl Engine {
                 hash,
             } => self.on_file_offer(peer, id, name, size, hash),
             Frame::FileAccept { id } => self.on_file_accepted(peer, id),
+            Frame::CallOffer { id } => self.on_call_offer(peer, id),
+            Frame::CallAccept { id } => self.on_call_accepted(peer, id),
+            Frame::CallEnd { id } => self.on_call_end(peer, id),
             Frame::FileReject { id } => {
                 if let Some(s) = self.sessions.get_mut(&peer)
                     && s.outgoing.remove(&id).is_some()
@@ -1461,6 +1758,12 @@ impl Engine {
 
     fn end_session(&mut self, peer: PublicKey, s: Session, code: u32, reason: Option<String>) {
         self.fail_unacked(peer, &s);
+        if s.call.is_some() {
+            self.sink.emit(Event::Call {
+                peer,
+                state: CallState::Ended("connection lost".into()),
+            });
+        }
         // Accepted files whose data never started: drop the reserved names.
         for (dest, _) in s.expecting.values() {
             let _ = std::fs::remove_file(transfer::part_path(dest));

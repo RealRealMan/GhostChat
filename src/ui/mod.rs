@@ -363,6 +363,12 @@ impl App {
                 auto_connect: self.settings.auto_connect.then_some(AUTO_CONNECT_EVERY),
                 downloads: self.profile.downloads_dir(&self.settings),
                 max_file_size: self.settings.max_file_mb.saturating_mul(1024 * 1024),
+                // UI tests (loopback network) run without sound hardware.
+                audio: if self.net_override.is_some() {
+                    crate::voice::AudioBackend::Silent
+                } else {
+                    crate::voice::AudioBackend::Devices
+                },
             },
             tx,
             Arc::new(move |attention| {
@@ -1003,6 +1009,9 @@ impl App {
             ctx.request_repaint_after(Duration::from_millis(60));
         }
         if core.pairing_until.is_some() {
+            ctx.request_repaint_after(Duration::from_millis(500));
+        }
+        if core.call.is_some() {
             ctx.request_repaint_after(Duration::from_millis(500));
         }
 
