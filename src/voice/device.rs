@@ -28,10 +28,13 @@ pub struct Output {
     pub queue: Arc<Mutex<VecDeque<f32>>>,
 }
 
-pub fn open_input(errors: ErrorTx) -> Result<Input, String> {
-    let device = cpal::default_host()
-        .default_input_device()
-        .ok_or("no microphone found")?;
+pub fn open_input(name: Option<&str>, errors: ErrorTx) -> Result<Input, String> {
+    let host = cpal::default_host();
+    let device = match name {
+        Some(n) => find(host.input_devices(), n)
+            .ok_or_else(|| format!("microphone \"{n}\" not found — /mic to choose another"))?,
+        None => host.default_input_device().ok_or("no microphone found")?,
+    };
     let supported = device
         .default_input_config()
         .map_err(|e| format!("microphone: {e}"))?;
@@ -82,10 +85,13 @@ fn build_input<T: SizedSample + Copy + Send + 'static>(
         .map_err(|e| format!("microphone: {e}"))
 }
 
-pub fn open_output(errors: ErrorTx) -> Result<Output, String> {
-    let device = cpal::default_host()
-        .default_output_device()
-        .ok_or("no speakers found")?;
+pub fn open_output(name: Option<&str>, errors: ErrorTx) -> Result<Output, String> {
+    let host = cpal::default_host();
+    let device = match name {
+        Some(n) => find(host.output_devices(), n)
+            .ok_or_else(|| format!("speakers \"{n}\" not found — /speaker to choose another"))?,
+        None => host.default_output_device().ok_or("no speakers found")?,
+    };
     let supported = device
         .default_output_config()
         .map_err(|e| format!("speakers: {e}"))?;
@@ -137,4 +143,40 @@ fn build_output<T: SizedSample + Copy + Send + 'static>(
             None,
         )
         .map_err(|e| format!("speakers: {e}"))
+}
+
+fn device_name(d: &cpal::Device) -> Option<String> {
+    d.description().ok().map(|desc| desc.name().to_string())
+}
+
+fn find<I: Iterator<Item = cpal::Device>, E>(
+    devices: Result<I, E>,
+    name: &str,
+) -> Option<cpal::Device> {
+    devices
+        .ok()?
+        .find(|d| device_name(d).as_deref() == Some(name))
+}
+
+/// Names of the available microphones and speakers.
+///
+/// Runs on a short-lived thread: on Windows, listing devices initializes COM,
+/// which must not change the threading mode of the UI thread.
+pub fn list() -> Result<(Vec<String>, Vec<String>), String> {
+    std::thread::spawn(|| {
+        let host = cpal::default_host();
+        let names =
+            |devices: Result<Vec<cpal::Device>, cpal::Error>| -> Result<Vec<String>, String> {
+                Ok(devices
+                    .map_err(|e| e.to_string())?
+                    .iter()
+                    .filter_map(device_name)
+                    .collect())
+            };
+        let inputs = names(host.input_devices().map(|d| d.collect()))?;
+        let outputs = names(host.output_devices().map(|d| d.collect()))?;
+        Ok((inputs, outputs))
+    })
+    .join()
+    .map_err(|_| "listing audio devices failed".to_string())?
 }

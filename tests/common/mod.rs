@@ -63,6 +63,7 @@ impl Node {
                 downloads: downloads.path().to_path_buf(),
                 max_file_size: max,
                 audio: ghostchat::voice::AudioBackend::Silent,
+                meter: Default::default(),
             },
             tx,
             Arc::new(move |wants| {

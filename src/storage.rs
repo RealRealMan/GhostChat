@@ -108,6 +108,9 @@ pub struct Settings {
     /// Flash the taskbar / bounce the Dock icon when a message arrives while
     /// the window is in the background.
     pub flash: bool,
+    /// Microphone and speakers for calls, by name. None = system default.
+    pub mic: Option<String>,
+    pub speaker: Option<String>,
     /// PRD §20.5: off by default.
     pub panic_wipes_identity: bool,
     pub auto_connect: bool,
@@ -133,6 +136,8 @@ impl Default for Settings {
             scanlines: true,
             flicker: false,
             flash: true,
+            mic: None,
+            speaker: None,
             panic_wipes_identity: false,
             auto_connect: true,
             idle_minutes: 5,

@@ -31,6 +31,7 @@ use crate::{
     safety::{self, Safety},
     sanitize,
     storage::{self, Lookup, Profile, SecretStore, Secrets, Settings},
+    voice,
 };
 use theme::{Palette, mono};
 
@@ -352,6 +353,7 @@ impl App {
         let ctx = self.ctx.clone();
         let taskbar = self.taskbar.clone();
         let flash_on = self.flash_on.clone();
+        let meter = voice::Meter::default();
         let me = secrets.secret_key().public();
         let engine = engine::spawn(
             &self.rt,
@@ -365,10 +367,14 @@ impl App {
                 max_file_size: self.settings.max_file_mb.saturating_mul(1024 * 1024),
                 // UI tests (loopback network) run without sound hardware.
                 audio: if self.net_override.is_some() {
-                    crate::voice::AudioBackend::Silent
+                    voice::AudioBackend::Silent
                 } else {
-                    crate::voice::AudioBackend::Devices
+                    voice::AudioBackend::Devices(voice::DeviceChoice {
+                        input: self.settings.mic.clone(),
+                        output: self.settings.speaker.clone(),
+                    })
                 },
+                meter: meter.clone(),
             },
             tx,
             Arc::new(move |attention| {
@@ -386,6 +392,7 @@ impl App {
             contacts,
             me,
             Zeroizing::new(secrets.storage_key),
+            meter,
         );
         drop(secrets);
         for n in notes {
@@ -948,6 +955,20 @@ impl App {
                 ui.label(RichText::new(hint).color(p.dim).small());
             });
 
+        if core.call.is_some() {
+            // Plain background: the ringing glitch overlay is the effect, and
+            // the buttons must stay readable.
+            let clicked = egui::Panel::bottom("call")
+                .frame(egui::Frame::new().fill(p.panel).inner_margin(6.0))
+                .show(ui, |ui| core.call_panel(ui, p))
+                .inner;
+            if let Some(cmd) = clicked {
+                action = core.handle(cmd, &profile, &mut self.settings, &ctx);
+            }
+            // Level meters and the call timer move while a call is up.
+            ctx.request_repaint_after(Duration::from_millis(100));
+        }
+
         egui::Panel::left("contacts")
             .frame(egui::Frame::new().fill(p.panel).inner_margin(6.0))
             .default_size(220.0)
@@ -1009,9 +1030,6 @@ impl App {
             ctx.request_repaint_after(Duration::from_millis(60));
         }
         if core.pairing_until.is_some() {
-            ctx.request_repaint_after(Duration::from_millis(500));
-        }
-        if core.call.is_some() {
             ctx.request_repaint_after(Duration::from_millis(500));
         }
 

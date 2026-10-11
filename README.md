@@ -107,6 +107,7 @@ Each person verifies the other separately. If the other person missed your words
 ## 7. Everyday use
 
 - **Chat:** click a name on the left (or `/chat NAME`), type, press Enter. GhostChat connects automatically when both of you are online.
+- **Voice calls (experimental):** with a contact who is online, type `/call NAME`. They see an incoming-call bar with **[ ANSWER ]** and **[ DECLINE ]** buttons (or `/answer`, `/hangup`). During the call the bar shows the time, your microphone level and theirs, **[ MUTE ]** and **[ HANG UP ]**. Headphones give the best sound; without them, echo cancellation keeps your speakers out of the microphone. `/devices` lists microphones and speakers; choose with `/mic N` and `/speaker N`. Both people need GhostChat 0.2 or newer.
 - **Alerts:** when GhostChat is in the background (or showing the idle screen), a new message, pair request or file offer flashes the taskbar icon (Dock icon on macOS). No system pop-up is used, so nothing ends up in the OS notification history. Turn off with `/flash off`. On Windows this also works while GhostChat is minimized; on macOS and Linux only while the window is not minimized.
 - **Send a file:** drag it onto the window, or `/send`. The other person must `/accept` it. Files arrive in `Downloads/GhostChat/`.
 - **Commands start with `/`.** Text without `/` is sent as a message. To send a message that starts with `/`, type `//`.
@@ -154,6 +155,9 @@ Each person verifies the other separately. If the other person missed your words
 | `/answer` | `/answer` | Answer an incoming call. |
 | `/hangup` | `/hangup` | End the call, cancel it, or decline an incoming call. |
 | `/mute [on\|off]` | `/mute` | Mute or unmute your microphone during calls. |
+| `/devices` | `/devices` | List microphones and speakers (numbered). |
+| `/mic N\|default` | `/mic 2` | Choose the microphone for calls. Applies to the next call. |
+| `/speaker N\|default` | `/speaker 1` | Choose the speakers for calls. Applies to the next call. |
 | `/clear` | `/clear` | Wipe the open conversation from screen and memory. |
 
 ### You and the look
@@ -191,6 +195,7 @@ Windows `%APPDATA%\GhostChat\data\` · macOS `~/Library/Application Support/Ghos
 |---|---|---|
 | `relay_only` | `false` | Never connect directly, so contacts never see your IP address |
 | `flash` | `true` | Same as `/flash` |
+| `mic`, `speaker` | `null` | Device names for calls (null = system default); set with `/mic`, `/speaker` |
 | `auto_connect` | `true` | Retry contacts every 30 seconds |
 | `idle_minutes` | `5` | Show the Matrix screen after this many idle minutes (0 = off) |
 | `pairing_minutes` | `10` | Length of the `/invite` window |
@@ -303,6 +308,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 ## 7. 日常使用
 
 - **傾偈**：按左邊的名字（或 `/chat 名字`），輸入文字，按 Enter。雙方都在線時會自動連線。
+- **語音通話（試驗功能）**：通話對象在線時，輸入 `/call 名字`。對方會看到來電列，有 **[ ANSWER ]**（接聽）和 **[ DECLINE ]**（拒絕）按鈕，或輸入 `/answer`、`/hangup`。通話期間會顯示時間、你和對方的音量，以及 **[ MUTE ]**（靜音）和 **[ HANG UP ]**（掛線）按鈕。戴耳機音質最好；不戴耳機時，回音消除會避免喇叭聲音傳回麥克風。`/devices` 列出麥克風和喇叭，用 `/mic 編號` 和 `/speaker 編號` 選擇。雙方都需要 GhostChat 0.2 或以上版本。
 - **提示**：GhostChat 在背景（或顯示閒置畫面）時，收到新訊息、配對請求或檔案，會令工作列圖示閃動（macOS 是 Dock 圖示跳動）。不會使用系統彈出通知，所以系統通知記錄不會留下任何內容。可用 `/flash off` 關閉。Windows 上即使視窗縮到最小亦有效；macOS 和 Linux 只在視窗未縮到最小時有效。
 - **傳送檔案**：把檔案拖入視窗，或輸入 `/send`。對方要 `/accept` 才會開始傳送。檔案存放在 `下載/GhostChat/`。
 - **指令以 `/` 開頭。** 沒有 `/` 的文字會當作訊息傳給對方。如果訊息本身要以 `/` 開頭，請輸入 `//`。
@@ -351,6 +357,9 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | `/answer` | `/answer` | 接聽來電。 |
 | `/hangup` | `/hangup` | 掛線、取消撥出，或拒絕來電。 |
 | `/mute [on\|off]` | `/mute` | 通話時開關麥克風靜音。 |
+| `/devices` | `/devices` | 列出麥克風和喇叭（附編號）。 |
+| `/mic 編號\|default` | `/mic 2` | 選擇通話用的麥克風，下一次通話生效。 |
+| `/speaker 編號\|default` | `/speaker 1` | 選擇通話用的喇叭，下一次通話生效。 |
 | `/clear` | `/clear` | 從畫面和記憶體清除目前對話。 |
 
 ### 個人與外觀
@@ -388,6 +397,7 @@ Windows `%APPDATA%\GhostChat\data\` · macOS `~/Library/Application Support/Ghos
 |---|---|---|
 | `relay_only` | `false` | 永不直接連線，聯絡人看不到你的 IP 位址 |
 | `flash` | `true` | 等同 `/flash` |
+| `mic`、`speaker` | `null` | 通話用的裝置名稱（null = 系統預設）；用 `/mic`、`/speaker` 設定 |
 | `auto_connect` | `true` | 每 30 秒自動重試連線 |
 | `idle_minutes` | `5` | 閒置多少分鐘後顯示 Matrix 畫面（0 = 關閉） |
 | `pairing_minutes` | `10` | `/invite` 配對時段長度 |

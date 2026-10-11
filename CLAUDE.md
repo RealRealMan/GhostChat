@@ -38,7 +38,8 @@ terminal), iroh 1.3 (QUIC + TLS 1.3) for transport. Spec: `PRD-v0.3.md`.
 
 ## Work in progress: branch `feature/voice` (prototype)
 
-1-to-1 voice calls (`/call`, `/answer`, `/hangup`, `/mute`), `src/voice/`:
+1-to-1 voice calls (`/call`, `/answer`, `/hangup`, `/mute`, `/devices`,
+`/mic`, `/speaker`; call bar with buttons and level meters), `src/voice/`:
 cpal capture/playback → sonora (echo cancellation, noise suppression, AGC)
 → Opus 32 kbit/s **constant bitrate** (VBR would leak speech patterns) →
 QUIC datagrams on the existing iroh connection. Call signaling uses new

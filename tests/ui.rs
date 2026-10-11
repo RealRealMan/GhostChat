@@ -182,6 +182,18 @@ fn first_run_pair_verify_chat() {
         "background message alerts"
     );
     alice.h.input_mut().focused = true;
+
+    // Voice call through the UI (silent audio in tests).
+    alice.type_line("/call BOB");
+    bob.wait("ringing", |b| has(b, "INCOMING CALL from ALICE"));
+    bob.frames(2);
+    bob.shot("13-call-ringing");
+    bob.type_line("/answer");
+    alice.wait("call connected", |a| has(a, "CALL CONNECTED with BOB"));
+    alice.frames(3);
+    alice.shot("14-call-active");
+    alice.type_line("/hangup");
+    bob.wait("call ended", |b| has(b, "CALL ENDED with ALICE"));
     alice.frames(5);
     alice.shot("06-chat");
     bob.shot("07-chat-bob-unverified");

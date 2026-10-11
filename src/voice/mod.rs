@@ -15,7 +15,7 @@ pub mod pipeline;
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         mpsc,
     },
     thread,
@@ -26,13 +26,59 @@ use sonora::{AudioProcessing, Config, StreamConfig};
 
 use pipeline::{FRAME_10MS, FRAME_20MS, Playout, RATE, Resampler, VoiceEncoder};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AudioBackend {
-    /// The default microphone and speakers.
-    Devices,
+    /// Real microphone and speakers.
+    Devices(DeviceChoice),
     /// No sound card: the microphone is silence and playback is discarded.
     /// Lets tests run a full call on machines without audio hardware.
     Silent,
+}
+
+/// Which sound devices to use, by name. `None` = the system default.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DeviceChoice {
+    pub input: Option<String>,
+    pub output: Option<String>,
+}
+
+/// Live speech levels for the UI (0.0 = silence, 1.0 = loud), written by
+/// the audio thread and read by the UI without locking.
+#[derive(Debug, Clone, Default)]
+pub struct Meter(Arc<[AtomicU32; 2]>);
+
+impl Meter {
+    /// Your own microphone, after echo cancellation (0 while muted).
+    pub fn mic(&self) -> f32 {
+        f32::from_bits(self.0[0].load(Ordering::Relaxed))
+    }
+
+    /// The other person's voice.
+    pub fn peer(&self) -> f32 {
+        f32::from_bits(self.0[1].load(Ordering::Relaxed))
+    }
+
+    fn set(&self, i: usize, samples: &[f32]) {
+        self.0[i].store(level(samples).to_bits(), Ordering::Relaxed);
+    }
+
+    fn reset(&self) {
+        for v in self.0.iter() {
+            v.store(0f32.to_bits(), Ordering::Relaxed);
+        }
+    }
+}
+
+/// RMS level mapped from -60..0 dBFS to 0..1.
+fn level(samples: &[f32]) -> f32 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let rms = (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
+    if rms <= 0.0 {
+        return 0.0;
+    }
+    ((20.0 * rms.log10() + 60.0) / 60.0).clamp(0.0, 1.0)
 }
 
 /// Sends one packet to the peer (an unreliable datagram).
@@ -55,7 +101,8 @@ impl Call {
     /// microphone or speakers cannot be opened.
     pub fn start(
         call_id: u32,
-        backend: AudioBackend,
+        backend: &AudioBackend,
+        meter: Meter,
         send: SendPacket,
         incoming: mpsc::Receiver<Vec<u8>>,
         on_fail: OnFail,
@@ -64,6 +111,7 @@ impl Call {
         let muted = Arc::new(AtomicBool::new(false));
         let (ready_tx, ready_rx) = mpsc::channel();
         let (thread_stop, thread_muted) = (stop.clone(), muted.clone());
+        let backend = backend.clone();
         thread::Builder::new()
             .name("ghostchat-voice".into())
             .spawn(move || {
@@ -73,9 +121,12 @@ impl Call {
                     incoming,
                     stop: thread_stop,
                     muted: thread_muted,
+                    meter: meter.clone(),
                 };
                 // Setup errors go back to `start`; later ones to `on_fail`.
-                if let Err(e) = run(ctx, backend, ready_tx) {
+                let result = run(ctx, backend, ready_tx);
+                meter.reset();
+                if let Err(e) = result {
                     on_fail(e);
                 }
             })
@@ -106,6 +157,7 @@ struct Ctx {
     incoming: mpsc::Receiver<Vec<u8>>,
     stop: Arc<AtomicBool>,
     muted: Arc<AtomicBool>,
+    meter: Meter,
 }
 
 enum Io {
@@ -125,11 +177,11 @@ impl Io {
             AudioBackend::Silent => Ok(Io::Silent {
                 next: Instant::now(),
             }),
-            AudioBackend::Devices => {
+            AudioBackend::Devices(choice) => {
                 let (tx, errors) = mpsc::channel();
                 Ok(Io::Devices {
-                    input: Box::new(device::open_input(tx.clone())?),
-                    output: Box::new(device::open_output(tx)?),
+                    input: Box::new(device::open_input(choice.input.as_deref(), tx.clone())?),
+                    output: Box::new(device::open_output(choice.output.as_deref(), tx)?),
                     errors,
                 })
             }
@@ -243,6 +295,7 @@ fn run(
         while captured.len() >= FRAME_10MS {
             if frames.is_multiple_of(2) {
                 playout.pop_frame(&mut play);
+                ctx.meter.set(1, &play);
                 // Tell the echo canceller what the speakers are about to play.
                 for half in play.chunks(FRAME_10MS) {
                     apm.process_render_f32(&[half], &mut [&mut scratch[..]])
@@ -261,6 +314,7 @@ fn run(
             if ctx.muted.load(Ordering::Relaxed) {
                 processed.fill(0.0);
             }
+            ctx.meter.set(0, &processed);
             if let Some(packet) = enc.push(&processed)? {
                 (ctx.send)(packet);
             }
@@ -282,9 +336,11 @@ mod tests {
         let sent = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let counter = sent.clone();
         let (_tx, rx) = mpsc::channel();
+        let meter = Meter::default();
         let call = Call::start(
             1,
-            AudioBackend::Devices,
+            &AudioBackend::Devices(DeviceChoice::default()),
+            meter.clone(),
             Box::new(move |_| {
                 counter.fetch_add(1, Ordering::Relaxed);
             }),
@@ -293,9 +349,24 @@ mod tests {
         )
         .unwrap();
         thread::sleep(Duration::from_millis(1000));
+        eprintln!("mic level while running: {:.2}", meter.mic());
         drop(call);
+        thread::sleep(Duration::from_millis(300));
+        assert_eq!(meter.mic(), 0.0, "levels reset when the call ends");
         let n = sent.load(Ordering::Relaxed);
         assert!(n >= 30, "about 50 packets per second, got {n}");
+    }
+
+    #[test]
+    fn level_scale() {
+        assert_eq!(level(&[]), 0.0);
+        assert_eq!(level(&[0.0; 480]), 0.0);
+        assert!(level(&[0.001; 480]) < 0.05, "-60 dBFS is near silent");
+        assert!(
+            (level(&[0.5; 480]) - 0.9).abs() < 0.01,
+            "-6 dBFS maps to 0.9"
+        );
+        assert_eq!(level(&[2.0; 480]), 1.0, "clamped");
     }
 
     /// Two silent calls wired to each other exchange packets.
@@ -307,7 +378,8 @@ mod tests {
         let counter = sent.clone();
         let a = Call::start(
             1,
-            AudioBackend::Silent,
+            &AudioBackend::Silent,
+            Meter::default(),
             Box::new(move |p| {
                 counter.fetch_add(1, Ordering::Relaxed);
                 let _ = b_tx.send(p);
@@ -318,7 +390,8 @@ mod tests {
         .unwrap();
         let b = Call::start(
             1,
-            AudioBackend::Silent,
+            &AudioBackend::Silent,
+            Meter::default(),
             Box::new(move |p| {
                 let _ = a_tx.send(p);
             }),

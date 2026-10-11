@@ -15,6 +15,7 @@ use zeroize::{Zeroize, Zeroizing};
 
 use super::{
     commands::{self, Cmd},
+    effects,
     theme::{Palette, ThemeName, mono},
 };
 use crate::{
@@ -25,6 +26,7 @@ use crate::{
     safety, sanitize,
     storage::{self, Profile, Settings},
     transfer::human_size,
+    voice,
 };
 
 const ALIAS_MAX: usize = 24;
@@ -120,6 +122,10 @@ pub struct Core {
     pub call: Option<(PublicKey, CallState, Instant)>,
     /// Microphone muted for calls (kept across calls).
     pub muted: bool,
+    /// Live speech levels during a call.
+    pub meter: voice::Meter,
+    /// Last `/devices` listing (microphones, speakers), so `/mic 2` works.
+    pub devices: Option<(Vec<String>, Vec<String>)>,
 }
 
 impl Core {
@@ -129,6 +135,7 @@ impl Core {
         contacts: Arc<Mutex<ContactBook>>,
         me: PublicKey,
         storage_key: Zeroizing<[u8; 32]>,
+        meter: voice::Meter,
     ) -> Self {
         Core {
             engine,
@@ -154,6 +161,8 @@ impl Core {
             needs_attention: false,
             call: None,
             muted: false,
+            meter,
+            devices: None,
         }
     }
 
@@ -180,6 +189,103 @@ impl Core {
             kind,
             text: text.into(),
         });
+    }
+
+    fn list_devices(&mut self, settings: &Settings) {
+        let (mics, speakers) = match voice::device::list() {
+            Ok(d) => d,
+            Err(e) => {
+                self.reply(LineKind::Warn, format!("cannot list audio devices: {e}"));
+                return;
+            }
+        };
+        let section = |title: &str, names: &[String], chosen: &Option<String>| {
+            let mut out = format!("{title}:\n");
+            let default = if chosen.is_none() { "  <- in use" } else { "" };
+            out.push_str(&format!("  0) system default{default}\n"));
+            for (i, n) in names.iter().enumerate() {
+                let mark = if chosen.as_deref() == Some(n.as_str()) {
+                    "  <- in use"
+                } else {
+                    ""
+                };
+                out.push_str(&format!("  {}) {}{mark}\n", i + 1, sanitize::text(n)));
+            }
+            out
+        };
+        let text = format!(
+            "{}\n{}\nChoose with /mic N or /speaker N (0 = system default). Applies to the next call.",
+            section("MICROPHONES", &mics, &settings.mic),
+            section("SPEAKERS", &speakers, &settings.speaker),
+        );
+        self.devices = Some((mics, speakers));
+        self.reply(LineKind::Block, text);
+    }
+
+    /// `/mic N` or `/speaker N`: N from the last `/devices` list, 0 or
+    /// "default" for the system default.
+    fn choose_device(&mut self, settings: &mut Settings, input: bool, arg: Option<String>) {
+        let what = if input { "microphone" } else { "speakers" };
+        let Some(arg) = arg else {
+            let current = if input {
+                &settings.mic
+            } else {
+                &settings.speaker
+            };
+            let name = current
+                .as_deref()
+                .map_or("system default".into(), sanitize::text);
+            self.reply(
+                LineKind::System,
+                format!(
+                    "{what}: {name} — /devices to list, /{} N to choose",
+                    if input { "mic" } else { "speaker" }
+                ),
+            );
+            return;
+        };
+        let choice = if arg.eq_ignore_ascii_case("default") || arg == "0" {
+            None
+        } else {
+            if self.devices.is_none() {
+                self.devices = voice::device::list().ok();
+            }
+            let names = self
+                .devices
+                .as_ref()
+                .map(|(mics, speakers)| if input { mics } else { speakers });
+            let picked = arg
+                .parse::<usize>()
+                .ok()
+                .and_then(|n| names.and_then(|list| list.get(n.checked_sub(1)?)));
+            match picked {
+                Some(name) => Some(name.clone()),
+                None => {
+                    self.reply(
+                        LineKind::Warn,
+                        format!("no {what} number {} — see /devices", sanitize::text(&arg)),
+                    );
+                    return;
+                }
+            }
+        };
+        let label = choice
+            .as_deref()
+            .map_or("system default".into(), sanitize::text);
+        if input {
+            settings.mic = choice;
+        } else {
+            settings.speaker = choice;
+        }
+        self.engine
+            .send(Command::SetAudioDevices(voice::DeviceChoice {
+                input: settings.mic.clone(),
+                output: settings.speaker.clone(),
+            }));
+        self.reply(
+            LineKind::Ok,
+            format!("{what} set to {label} (used from the next call)"),
+        );
     }
 
     /// A call line goes to the contact's conversation and, if the user is
@@ -212,6 +318,10 @@ impl Core {
                 format!("CALL ENDED with {name} ({})", sanitize::text(reason)),
             ),
         };
+        if state == CallState::Ringing {
+            // Short red glitch, the same effect as an intrusion alert.
+            self.alert_until = Some(Instant::now() + Duration::from_millis(1200));
+        }
         self.call = match state {
             CallState::Ended(_) => None,
             s => Some((peer, s, Instant::now())),
@@ -707,6 +817,9 @@ Only accept it if {who} told you (by voice) to expect it."
                     },
                 );
             }
+            Cmd::Devices => self.list_devices(settings),
+            Cmd::Mic(arg) => self.choose_device(settings, true, arg),
+            Cmd::Speaker(arg) => self.choose_device(settings, false, arg),
             Cmd::Contacts => self.list_contacts(),
             Cmd::Clear => {
                 self.convos.remove(&self.selected);
@@ -1038,6 +1151,94 @@ Only accept it if {who} told you (by voice) to expect it."
 
     /// Security status for the selected contact, built only from real engine
     /// and contact state (PRD §12). Peer text never reaches this panel.
+    /// Shown above the input while calling, ringing or in a call. Returns
+    /// the command of a clicked button.
+    pub fn call_panel(&self, ui: &mut egui::Ui, p: &Palette) -> Option<Cmd> {
+        let (peer, state, since) = self.call.as_ref()?;
+        let name = self.name(peer);
+        let t = ui.input(|i| i.time);
+        let blink = (t * 2.0) as i64 % 2 == 0;
+        let mut clicked = None;
+        let mut button = |ui: &mut egui::Ui, label: &str, color: Color32, cmd: Cmd| {
+            if ui
+                .button(RichText::new(label).color(color).strong())
+                .clicked()
+            {
+                clicked = Some(cmd);
+            }
+        };
+        match state {
+            CallState::Ringing => {
+                ui.horizontal(|ui| {
+                    let color = if blink { p.danger } else { p.bright };
+                    ui.label(
+                        RichText::new(format!(">>> INCOMING SECURE CALL: {name} <<<"))
+                            .color(color)
+                            .strong()
+                            .size(18.0),
+                    );
+                    button(ui, "[ ANSWER ]", p.bright, Cmd::Answer);
+                    button(ui, "[ DECLINE ]", p.danger, Cmd::Hangup);
+                });
+            }
+            CallState::Calling => {
+                ui.horizontal(|ui| {
+                    let dots = ".".repeat((t * 2.0) as usize % 4);
+                    ui.label(
+                        RichText::new(format!("CALLING {name}{dots}"))
+                            .color(p.warn)
+                            .strong(),
+                    );
+                    button(ui, "[ CANCEL ]", p.danger, Cmd::Hangup);
+                });
+            }
+            _ => {
+                let secs = since.elapsed().as_secs();
+                let path = match self.paths.get(peer) {
+                    Some(PathKind::Direct) => "DIRECT",
+                    Some(PathKind::Relay) => "RELAY",
+                    _ => "...",
+                };
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(format!(
+                            "<< SECURE VOICE CHANNEL >> {name}  {}:{:02}  E2EE · {path}",
+                            secs / 60,
+                            secs % 60
+                        ))
+                        .color(p.bright)
+                        .strong(),
+                    );
+                    let (label, cmd) = if self.muted {
+                        ("[ UNMUTE ]", Cmd::Mute(Some(false)))
+                    } else {
+                        ("[ MUTE ]", Cmd::Mute(Some(true)))
+                    };
+                    button(ui, label, p.warn, cmd);
+                    button(ui, "[ HANG UP ]", p.danger, Cmd::Hangup);
+                });
+                ui.horizontal(|ui| {
+                    let mic = if self.muted {
+                        "MIC [ MUTED          ]".to_string()
+                    } else {
+                        format!("MIC {}", level_bar(self.meter.mic()))
+                    };
+                    ui.label(RichText::new(mic).color(p.fg));
+                    ui.label(
+                        RichText::new(format!("IN {}", level_bar(self.meter.peer()))).color(p.fg),
+                    );
+                    // Decoration only: random bytes, never real keys or audio.
+                    ui.label(
+                        RichText::new(format!("ENC> {}", effects::random_hex(12)))
+                            .color(p.dim)
+                            .small(),
+                    );
+                });
+            }
+        }
+        clicked
+    }
+
     pub fn status_bar(&self, ui: &mut egui::Ui, p: &Palette, settings: &Settings) {
         ui.horizontal(|ui| {
             let me = settings.codename.clone().unwrap_or_default();
@@ -1275,4 +1476,11 @@ pub fn my_key(me: PublicKey, settings: &Settings) -> ContactKey {
 
 fn on_off(b: bool) -> &'static str {
     if b { "on" } else { "off" }
+}
+
+/// `[||||||..........]`: ASCII so it renders with the bundled font.
+fn level_bar(level: f32) -> String {
+    const CELLS: usize = 16;
+    let filled = ((level.clamp(0.0, 1.0) * CELLS as f32).round() as usize).min(CELLS);
+    format!("[{}{}]", "|".repeat(filled), ".".repeat(CELLS - filled))
 }

@@ -71,6 +71,8 @@ pub struct EngineConfig {
     pub max_file_size: u64,
     /// Sound card for voice calls ([`AudioBackend::Silent`] in tests).
     pub audio: AudioBackend,
+    /// Live speech levels during a call, shared with the UI.
+    pub meter: voice::Meter,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -149,6 +151,8 @@ pub enum Command {
     Hangup(PublicKey),
     /// Mute or unmute the microphone (also applies to later calls).
     MuteCall(bool),
+    /// Microphone / speakers for later calls (`/mic`, `/speaker`).
+    SetAudioDevices(voice::DeviceChoice),
     /// Close everything. `panic` uses the PANIC close code.
     Shutdown {
         panic: bool,
@@ -572,6 +576,7 @@ struct Engine {
     max_file_size: u64,
     next_file_id: u64,
     audio: AudioBackend,
+    meter: voice::Meter,
     muted: bool,
 }
 
@@ -594,6 +599,7 @@ impl Engine {
             max_file_size: cfg.max_file_size,
             next_file_id: 1,
             audio: cfg.audio,
+            meter: cfg.meter,
             muted: false,
         }
     }
@@ -723,6 +729,11 @@ impl Engine {
             Command::AnswerCall { peer, accept } => self.answer_call(peer, accept),
             Command::Hangup(peer) => self.end_call(peer, true, "call ended"),
             Command::MuteCall(muted) => self.set_muted(muted),
+            Command::SetAudioDevices(choice) => {
+                if let AudioBackend::Devices(current) = &mut self.audio {
+                    *current = choice;
+                }
+            }
             Command::Shutdown { .. } => unreachable!("handled in run"),
         }
     }
@@ -1146,7 +1157,7 @@ impl Engine {
             let _ = internal.send(Internal::CallFailed { peer, id, reason });
         });
         // Blocks this task briefly while the sound card opens.
-        let started = voice::Call::start(id, self.audio, send, rx, on_fail);
+        let started = voice::Call::start(id, &self.audio, self.meter.clone(), send, rx, on_fail);
         match started {
             Ok(media) => {
                 media.set_muted(self.muted);
