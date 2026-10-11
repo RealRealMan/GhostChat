@@ -1950,7 +1950,7 @@ dependencies = [
 
 [[package]]
 name = "ghostchat"
-version = "0.1.1-beta"
+version = "0.1.1"
 dependencies = [
  "argon2",
  "bip39",
@@ -1964,6 +1964,7 @@ dependencies = [
  "libc",
  "postcard",
  "rand",
+ "raw-window-handle",
  "rfd",
  "serde",
  "serde_json",

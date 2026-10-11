@@ -1,6 +1,6 @@
 # GhostChat — Progress
 
-Status as of 2026-10-08, release **v0.1.0**. Source of truth: PRD-v0.3.md.
+Status as of 2026-10-11, release **v0.1.1**. Source of truth: PRD-v0.3.md.
 
 The development history was squashed into a single commit for the public
 repository, so per-phase commits no longer exist.
@@ -53,6 +53,8 @@ repository, so per-phase commits no longer exist.
 - Install, codename, `/invite` → `/add` → `/accept`, safety-word verification,
   chat, file transfer, panic: all working.
 - Cangjie (Chinese IME) input works after the IME fix below.
+- 0.1.1: the taskbar flashes when a message arrives while GhostChat is
+  minimized, and stops when the window is opened.
 
 ## Not verified / known gaps
 

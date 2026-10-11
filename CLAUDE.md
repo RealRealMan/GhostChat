@@ -23,15 +23,16 @@ terminal), iroh 1.3 (QUIC + TLS 1.3) for transport. Spec: `PRD-v0.3.md`.
 
 ## Current state
 
-- `main`: v0.1.0 (tag `v0.1.0`). Windows tested on real machines, including
-  across two different networks. macOS/Linux packages build in CI but have
-  never been installed on a real machine.
-- Branch `feature/background-alerts`, version `0.1.1-beta`:
+- `main`: v0.1.1 (tag `v0.1.1`; previous release `v0.1.0`). Windows tested
+  on real machines, including across two different networks. macOS/Linux
+  packages build in CI but have never been installed on a real machine.
+- New in 0.1.1 (developed on branch `feature/background-alerts`):
   - Taskbar flash when a message, pair request or file offer arrives while
     GhostChat is in the background (`/flash on|off`).
   - On Windows the flash is triggered from the engine callback with
     `FlashWindowEx` (`src/ui/flash.rs`), because eframe pauses the UI loop
-    while the window is minimized. **Not yet tested on a real machine.**
+    while the window is minimized. Tested on real Windows PCs: works while
+    minimized.
   - A notification sound was tried and removed (too harsh, and it only
     played once the window was reopened).
 

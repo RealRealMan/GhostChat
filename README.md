@@ -107,7 +107,7 @@ Each person verifies the other separately. If the other person missed your words
 ## 7. Everyday use
 
 - **Chat:** click a name on the left (or `/chat NAME`), type, press Enter. GhostChat connects automatically when both of you are online.
-- **Alerts (beta):** when GhostChat is in the background (or showing the idle screen), a new message, pair request or file offer flashes the taskbar icon (Dock icon on macOS). No system pop-up is used, so nothing ends up in the OS notification history. Turn off with `/flash off`. On Windows this also works while GhostChat is minimized; on macOS and Linux only while the window is not minimized.
+- **Alerts:** when GhostChat is in the background (or showing the idle screen), a new message, pair request or file offer flashes the taskbar icon (Dock icon on macOS). No system pop-up is used, so nothing ends up in the OS notification history. Turn off with `/flash off`. On Windows this also works while GhostChat is minimized; on macOS and Linux only while the window is not minimized.
 - **Send a file:** drag it onto the window, or `/send`. The other person must `/accept` it. Files arrive in `Downloads/GhostChat/`.
 - **Commands start with `/`.** Text without `/` is sent as a message. To send a message that starts with `/`, type `//`.
 
@@ -299,7 +299,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 ## 7. 日常使用
 
 - **傾偈**：按左邊的名字（或 `/chat 名字`），輸入文字，按 Enter。雙方都在線時會自動連線。
-- **提示（測試版）**：GhostChat 在背景（或顯示閒置畫面）時，收到新訊息、配對請求或檔案，會令工作列圖示閃動（macOS 是 Dock 圖示跳動）。不會使用系統彈出通知，所以系統通知記錄不會留下任何內容。可用 `/flash off` 關閉。Windows 上即使視窗縮到最小亦有效；macOS 和 Linux 只在視窗未縮到最小時有效。
+- **提示**：GhostChat 在背景（或顯示閒置畫面）時，收到新訊息、配對請求或檔案，會令工作列圖示閃動（macOS 是 Dock 圖示跳動）。不會使用系統彈出通知，所以系統通知記錄不會留下任何內容。可用 `/flash off` 關閉。Windows 上即使視窗縮到最小亦有效；macOS 和 Linux 只在視窗未縮到最小時有效。
 - **傳送檔案**：把檔案拖入視窗，或輸入 `/send`。對方要 `/accept` 才會開始傳送。檔案存放在 `下載/GhostChat/`。
 - **指令以 `/` 開頭。** 沒有 `/` 的文字會當作訊息傳給對方。如果訊息本身要以 `/` 開頭，請輸入 `//`。
 - **中文輸入**：可以用倉頡等中文輸入法；輸入指令時記得切換回英文。
