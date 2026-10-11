@@ -1,8 +1,11 @@
-# Checks on every push / PR: fmt, clippy, tests, dependency audit.
+# Checks on every branch push / PR: fmt, clippy, tests, dependency audit.
+# Tag pushes are skipped: a tag points at a commit that was already checked
+# when its branch was pushed.
 name: ci
 
 on:
   push:
+    branches: ["**"]
   pull_request:
 
 permissions:
