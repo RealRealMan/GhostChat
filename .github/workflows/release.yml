@@ -1,13 +1,12 @@
 # Builds unsigned installers for all three OSes and SHA-256 checksums.
-# Trigger manually or by pushing a tag like v0.1.0.
+# Manual only (Actions -> release -> Run workflow): the macOS jobs use a lot
+# of the free Actions minutes, so tags do not trigger it automatically.
 # Packages build successfully on GitHub (v0.1.0). macOS and Linux packages
 # have not yet been installed on real machines.
 name: release
 
 on:
   workflow_dispatch:
-  push:
-    tags: ["v*"]
 
 permissions:
   contents: read
