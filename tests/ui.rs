@@ -464,3 +464,52 @@ fn real_stack_os_store_and_n0() {
         ghostchat::storage::wipe_identity(&p).unwrap();
     }
 }
+
+/// Plain `/invite`: two devices both called BOB ask to pair. `/accept BOB` is
+/// refused as ambiguous; `/accept CODE` picks the real one.
+#[test]
+fn duplicate_pair_requests_need_the_invite_code() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let lookup = MemoryLookup::new();
+    let mut alice = open(&rt, "ui-dup-alice", &lookup);
+    let mut bob = open(&rt, "ui-dup-bob", &lookup);
+    let mut fake = open(&rt, "ui-dup-fake", &lookup);
+    for w in [&mut alice, &mut bob, &mut fake] {
+        w.frames(2);
+        w.h.key_press(egui::Key::Space);
+        w.frames(3);
+    }
+    alice.type_line("alice");
+    bob.type_line("bob");
+    fake.type_line("bob");
+    alice.wait("node online", |a| has(a, "listening"));
+
+    alice.type_line("/invite");
+    let key = alice.app().contact_key().unwrap();
+    bob.type_line(&format!("/add {key}"));
+    fake.type_line(&format!("/add {key}"));
+    let bob_code = safety::invite_code(&bob.app().public_key().unwrap());
+    assert!(
+        bob.has_line(&format!("Your invite code is {bob_code}")),
+        "the requester sees its own code"
+    );
+    alice.wait("two requests", |a| {
+        a.visible_lines()
+            .iter()
+            .filter(|l| l.contains("INCOMING PAIR REQUEST: BOB"))
+            .count()
+            == 2
+    });
+    alice.frames(2);
+    alice.shot("15-duplicate-requests");
+
+    alice.type_line("/accept BOB");
+    assert!(alice.has_line("2 requests claim to be BOB"));
+    alice.type_line(&format!("/accept {}", bob_code.to_lowercase()));
+    bob.wait("paired", |b| has(b, "ALICE added"));
+    let alice_key = alice.app().public_key().unwrap();
+    assert!(
+        !fake.has_line("ALICE added"),
+        "{alice_key} must not pair the fake"
+    );
+}

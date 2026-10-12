@@ -36,6 +36,14 @@ terminal), iroh 1.3 (QUIC + TLS 1.3) for transport. Spec: `PRD-v0.3.md`.
   - A notification sound was tried and removed (too harsh, and it only
     played once the window was reopened).
 
+## Work in progress: branch `fix/pair-requests` (0.1.2)
+
+Per-device 12-character invite codes (`safety::invite_code`, 60 bits from
+the public key). `/invite CODE` pairs only that device, automatically;
+plain `/invite` shows each request's code and refuses ambiguous
+`/accept NAME`. Branch `feature/voice` (voice calls) is separate and still
+needs a real two-PC test.
+
 ## Next steps on a Mac
 
 1. Setup: install Xcode Command Line Tools (`xcode-select --install`) and

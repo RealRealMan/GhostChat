@@ -12,6 +12,7 @@ tests in `src/`.
 | Someone impersonates a family member | Identity = public key. Contact Keys carry the key; pairing takes the requester's key from TLS, never from the payload. Safety words (split 6+6, BIP39) + randomart, verified by voice; user must *type* the words the other person reads (never shown on their own screen). | `src/safety.rs` tests, `tests/ui.rs::first_run_pair_verify_chat` |
 | Tampered / replayed / injected packets | QUIC AEAD + TLS 1.3 handle per-packet integrity and replay. App frames are length-checked before allocation; unknown variants close the connection; protocol version checked in Hello. | `src/proto.rs` tests, `tests/malicious.rs::{garbage_frame_closes_session, unknown_protocol_version_is_refused}`, `tests/fuzz_props.rs` |
 | Strangers connecting | `EndpointHooks::after_handshake` rejects any key that is not an ADDED/VERIFIED contact before a stream is accepted. Pairing ALPN is accepted only while `/invite` is open; at most 8 pending requests. | `tests/chat.rs::unknown_key_is_rejected`, `tests/pairing.rs::pair_request_outside_window_is_dropped_silently` |
+| Impostor pairs with the same codename | Every device has a 60-bit **invite code** derived from its public key (BLAKE3 `derive_key`). `/invite CODE` accepts only the key with that code, automatically, and rejects every other request with a warning; the window closes after the match. Plain `/invite` shows each requester's code, warns when two requests share a codename and refuses an ambiguous `/accept NAME`. 60 bits make it infeasible to generate a key with a given code within the pairing window. | `src/safety.rs::invite_codes`, `tests/pairing.rs::invite_code_accepts_only_the_invited_device`, `tests/ui.rs::duplicate_pair_requests_need_the_invite_code` |
 | Key change accepted silently | A new key claiming a VERIFIED contact's codename → `INTRUSION WARNING`, explicit confirmation, state `KEY_CHANGED`, all connections blocked until re-verified; old key removed. | `tests/pairing.rs::changed_key_is_blocked_until_reverified`, `src/contacts.rs` tests |
 | Conversation recoverable from disk | No message store, no log file. Messages are only in memory, zeroized on drop / `/clear` / exit / panic. Own window (no terminal scrollback). Crash dumps suppressed where the OS allows. | `tests/ui.rs` (clear + panic), `src/hardening.rs` |
 | Hostile peer input | Text: ANSI/OSC/CSI, C0/C1 controls, bidi and zero-width chars stripped. Codenames validated (invalid ones ignored). Filenames: last component only, `..` and Windows reserved names rejected, invalid chars replaced, length capped; executables flagged. Status bar is built only from engine state in its own panel. | `src/sanitize.rs` tests, `tests/malicious.rs`, `tests/fuzz_props.rs` |
@@ -46,9 +47,11 @@ tests in `src/`.
    and keys are encrypted / in the OS store.
 10. **Unsigned installers** (PRD §14): users must trust the delivery channel;
     SHA-256 checksums are produced in CI.
-11. **Pairing window:** anyone who gets the Contact Key while the window is
-    open can send a request; it still needs an explicit `/accept`, and the
-    result is UNVERIFIED until safety words match.
+11. **Pairing window:** with plain `/invite`, anyone who gets the Contact Key
+    while the window is open can send a request; the user must compare the
+    invite code and `/accept CODE`, and the result is UNVERIFIED until safety
+    words match. `/invite CODE` removes this choice. The invite code itself is
+    not secret: it only identifies a key, so it may be sent over any channel.
 12. **No post-quantum protection** for recorded traffic (PRD §20.4 deferred).
 
 ## 3. Dependency audit

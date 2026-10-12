@@ -396,9 +396,16 @@ impl App {
         if core.contacts.lock().expect("contacts").is_empty() {
             core.console(
                 LineKind::System,
-                "No contacts yet.\n  To invite a family member: type /invite and send them your Contact Key.\n  If someone sent YOU a Contact Key: type /add and paste it.",
+                "No contacts yet.\n  To invite a family member: ask for their invite code, type /invite CODE and send them your Contact Key.\n  If someone sent YOU a Contact Key: type /add and paste it.",
             );
         }
+        core.console(
+            LineKind::System,
+            format!(
+                "Your invite code: {} — give it to someone who wants to invite you.",
+                safety::invite_code(&core.me)
+            ),
+        );
         core.console(LineKind::System, "Type /help for all commands.");
         self.core = Some(core);
         self.screen = Screen::Main;

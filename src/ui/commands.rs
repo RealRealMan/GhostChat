@@ -7,6 +7,8 @@ pub enum Cmd {
     Help,
     Invite {
         stop: bool,
+        /// `/invite CODE`: only the device with this invite code (unparsed).
+        code: Option<String>,
     },
     Add(Option<String>),
     Accept(Option<String>),
@@ -40,8 +42,12 @@ pub enum Cmd {
 
 pub const HELP: &[(&str, &str)] = &[
     (
+        "/invite CODE",
+        "invite the device with this invite code (they tell you their code); shows your Contact Key",
+    ),
+    (
         "/invite",
-        "show your Contact Key and open a 10-minute pairing window",
+        "open a pairing window for anyone with your Contact Key (check the request code)",
     ),
     ("/invite stop", "close the pairing window"),
     (
@@ -125,12 +131,16 @@ pub fn parse(input: &str) -> Cmd {
     let (name, rest) = body.split_once(char::is_whitespace).unwrap_or((body, ""));
     match name.to_ascii_lowercase().as_str() {
         "help" | "h" | "?" => Cmd::Help,
-        "invite" => Cmd::Invite {
-            stop: matches!(
+        "invite" => {
+            let stop = matches!(
                 rest.trim().to_ascii_lowercase().as_str(),
                 "stop" | "close" | "off"
-            ),
-        },
+            );
+            Cmd::Invite {
+                stop,
+                code: if stop { None } else { arg(rest) },
+            }
+        }
         "add" => Cmd::Add(arg(rest)),
         "accept" => Cmd::Accept(arg(rest)),
         "reject" | "decline" => Cmd::Reject(arg(rest)),
@@ -187,8 +197,27 @@ mod tests {
     fn commands_with_and_without_args() {
         assert_eq!(parse("/help"), Cmd::Help);
         assert_eq!(parse("/HELP"), Cmd::Help);
-        assert_eq!(parse("/invite"), Cmd::Invite { stop: false });
-        assert_eq!(parse("/invite stop"), Cmd::Invite { stop: true });
+        assert_eq!(
+            parse("/invite"),
+            Cmd::Invite {
+                stop: false,
+                code: None
+            }
+        );
+        assert_eq!(
+            parse("/invite stop"),
+            Cmd::Invite {
+                stop: true,
+                code: None
+            }
+        );
+        assert_eq!(
+            parse("/invite 7f3a-91c2-xk4p"),
+            Cmd::Invite {
+                stop: false,
+                code: Some("7f3a-91c2-xk4p".into())
+            }
+        );
         assert_eq!(parse("/add"), Cmd::Add(None));
         assert_eq!(
             parse("/add  GHOSTKEY1.A.B.C "),

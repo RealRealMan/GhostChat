@@ -330,7 +330,10 @@ impl Core {
                 outcome,
             } => {
                 let key_change = matches!(outcome, AddOutcome::KeyChanged { .. });
-                let mut msg = format!("INCOMING PAIR REQUEST: {codename}  —  /accept or /reject");
+                let code = safety::invite_code(&peer);
+                let mut msg = format!(
+                    "INCOMING PAIR REQUEST: {codename} [{code}]  —  ask {codename} for their invite code; if it is {code}: /accept {code}, otherwise /reject {code}"
+                );
                 if key_change {
                     self.alert_until = Some(Instant::now() + Duration::from_secs(2));
                     msg = format!(
@@ -496,8 +499,8 @@ Only accept it if {who} told you (by voice) to expect it."
                 }
                 self.reply(LineKind::Block, s.trim_end());
             }
-            Cmd::Invite { stop: true } => self.engine.send(Command::ClosePairing),
-            Cmd::Invite { stop: false } => self.invite(settings, ctx),
+            Cmd::Invite { stop: true, .. } => self.engine.send(Command::ClosePairing),
+            Cmd::Invite { stop: false, code } => self.invite(settings, ctx, code),
             Cmd::Add(None) => {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("GhostChat Contact Key", &[contact_key::FILE_EXTENSION])
@@ -718,20 +721,52 @@ Only accept it if {who} told you (by voice) to expect it."
         }
     }
 
-    fn invite(&mut self, settings: &Settings, ctx: &egui::Context) {
+    fn invite(&mut self, settings: &Settings, ctx: &egui::Context, code: Option<String>) {
+        let code = match code {
+            None => None,
+            Some(raw) => match safety::parse_invite_code(&raw) {
+                None => {
+                    self.reply(
+                        LineKind::Warn,
+                        "an invite code has 12 letters/digits, like 7F3A-91C2-XK4P",
+                    );
+                    return;
+                }
+                Some(c) if c == safety::invite_code(&self.me) => {
+                    self.reply(
+                        LineKind::Warn,
+                        "that is your own invite code — ask the other person for theirs",
+                    );
+                    return;
+                }
+                Some(c) => Some(c),
+            },
+        };
         let minutes = u64::from(settings.pairing_minutes.clamp(1, 60));
         let window = Duration::from_secs(minutes * 60);
-        self.engine.send(Command::OpenPairing(window));
+        self.engine.send(Command::OpenPairing {
+            duration: window,
+            code: code.clone(),
+        });
         self.pairing_until = Some(Instant::now() + window);
         let key = self.my_contact_key(settings).encode();
         ctx.copy_text(key.clone());
+        let step3 = match &code {
+            Some(c) => format!(
+                "3. Only the device with invite code {c} is accepted, automatically.\n   \
+                 Requests from any other device are rejected."
+            ),
+            None => "3. You will see INCOMING PAIR REQUEST here with their invite code.\n   \
+                     Check that code with them by voice, then /accept CODE."
+                .to_string(),
+        };
         self.reply(
             LineKind::Block,
             format!(
                 "YOUR CONTACT KEY (copied to clipboard):\n\n{key}\n\n\
                  1. Send it to your family member (e.g. on Signal or WhatsApp).\n\
                  2. They open GhostChat, type /add and paste it.\n\
-                 3. You will see INCOMING PAIR REQUEST here — type /accept.\n\
+                 {step3}\n\
                  Pairing window open for {minutes} minutes (/invite stop to close)."
             ),
         );
@@ -781,8 +816,10 @@ Only accept it if {who} told you (by voice) to expect it."
         self.reply(
             LineKind::System,
             format!(
-                "Sending pair request to {}. They must have /invite open and press /accept.",
-                ck.codename
+                "PAIR REQUEST SENT to {}. Your invite code is {} — tell it to them\n\
+                 (they use /invite {1}, or check it before /accept).",
+                ck.codename,
+                safety::invite_code(&self.me)
             ),
         );
         self.engine.send(Command::Pair(ck));
@@ -832,12 +869,40 @@ Only accept it if {who} told you (by voice) to expect it."
             return;
         }
         let idx = match name {
+            None if self.pair_requests.len() > 1 => {
+                self.reply(
+                    LineKind::Warn,
+                    "several pair requests are waiting — name the invite code: /accept CODE",
+                );
+                return;
+            }
             None => self.pair_requests.len().checked_sub(1),
             Some(n) => {
+                // The invite code identifies one key; a codename may not.
+                let by_code = safety::parse_invite_code(n).and_then(|c| {
+                    self.pair_requests
+                        .iter()
+                        .position(|r| safety::invite_code(&r.peer) == c)
+                });
                 let n = n.trim().to_uppercase();
-                self.pair_requests
+                let by_name: Vec<usize> = self
+                    .pair_requests
                     .iter()
-                    .rposition(|r| r.codename == n || self.name(&r.peer).to_uppercase() == n)
+                    .enumerate()
+                    .filter(|(_, r)| r.codename == n || self.name(&r.peer).to_uppercase() == n)
+                    .map(|(i, _)| i)
+                    .collect();
+                if by_code.is_none() && by_name.len() > 1 {
+                    self.reply(
+                        LineKind::Alert,
+                        format!(
+                            "{} requests claim to be {n} — use the invite code: /accept CODE",
+                            by_name.len()
+                        ),
+                    );
+                    return;
+                }
+                by_code.or(by_name.first().copied())
             }
         };
         let Some(idx) = idx else {
@@ -896,8 +961,10 @@ Only accept it if {who} told you (by voice) to expect it."
         self.reply(
             LineKind::Block,
             format!(
-                "YOUR CONTACT KEY (public — safe to share; copied to clipboard):\n\n{key}\n\n{}\n\n\
+                "YOUR INVITE CODE: {}  (someone who invites you types /invite {0})\n\n\
+                 YOUR CONTACT KEY (public — safe to share; copied to clipboard):\n\n{key}\n\n{}\n\n\
                  Safety words are different for each contact: see /verify NAME.",
+                safety::invite_code(&self.me),
                 safety::key_art(&self.me)
             ),
         );
@@ -1052,12 +1119,39 @@ Only accept it if {who} told you (by voice) to expect it."
             .any(|(p, ..)| Some(*p) == self.selected)
     }
 
-    pub fn prompt_banner(&self, ui: &mut egui::Ui, p: &Palette) {
+    /// Codenames used by more than one waiting pair request.
+    fn duplicate_request_names(&self) -> Vec<String> {
+        let mut seen = HashSet::new();
+        let mut dup = Vec::new();
         for r in &self.pair_requests {
+            if !seen.insert(r.codename.as_str()) && !dup.contains(&r.codename) {
+                dup.push(r.codename.clone());
+            }
+        }
+        dup
+    }
+
+    pub fn prompt_banner(&self, ui: &mut egui::Ui, p: &Palette) {
+        for name in self.duplicate_request_names() {
+            ui.label(
+                RichText::new(format!(
+                    "!! {} DEVICES CLAIM TO BE {name} — someone else has your Contact Key. \
+                     Accept only the code the real {name} reads to you, or /reject all and /invite again.",
+                    self.pair_requests
+                        .iter()
+                        .filter(|r| r.codename == name)
+                        .count()
+                ))
+                .color(p.danger)
+                .strong(),
+            );
+        }
+        for r in &self.pair_requests {
+            let code = safety::invite_code(&r.peer);
             let (text, color) = if matches!(r.outcome, AddOutcome::KeyChanged { .. }) {
                 (
                     format!(
-                        "INTRUSION WARNING: KEY MISMATCH — pair request from {} with a NEW key. /accept {0} or /reject {0}",
+                        "INTRUSION WARNING: KEY MISMATCH — pair request from {} [{code}] with a NEW key. /accept {code} or /reject {code}",
                         r.codename
                     ),
                     p.danger,
@@ -1065,7 +1159,7 @@ Only accept it if {who} told you (by voice) to expect it."
             } else {
                 (
                     format!(
-                        "INCOMING PAIR REQUEST: {} — /accept {0} or /reject {0}",
+                        "INCOMING PAIR REQUEST: {} [{code}] — check the code with them, then /accept {code} or /reject {code}",
                         r.codename
                     ),
                     p.warn,
