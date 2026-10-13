@@ -1221,6 +1221,14 @@ Only accept it if {who} told you (by voice) to expect it."
                     .color(p.dim)
                     .small(),
             );
+            // Always visible, so nobody has to look for it when being invited.
+            ui.label(
+                RichText::new(safety::invite_code(&self.me))
+                    .color(p.bright)
+                    .strong(),
+            );
+            ui.label(RichText::new("INVITE CODE").color(p.dim).small());
+            ui.add_space(6.0);
             ui.label(
                 RichText::new(
                     "● online  ○ offline  ~ connecting\n[V] verified  [?] unverified\n[!] key changed: blocked\n>  sent   >> delivered   x failed",
