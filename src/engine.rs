@@ -23,7 +23,7 @@ use crate::{
     contact_key::ContactKey,
     contacts::{AddOutcome, ContactBook},
     proto::{self, CHAT_ALPN, Frame, PAIR_ALPN, PROTOCOL_VERSION, PairFrame, close},
-    sanitize,
+    safety, sanitize,
     transfer::{self, Offer},
     voice::{self, AudioBackend},
 };
@@ -116,8 +116,13 @@ pub enum Command {
         body: String,
     },
     SetCodename(String),
-    /// Inviter: accept pair requests for this long (`/invite`).
-    OpenPairing(Duration),
+    /// Inviter: accept pair requests for this long (`/invite`). With `code`
+    /// (`/invite CODE`) only the device with that invite code is accepted, and
+    /// automatically; requests from other keys are rejected.
+    OpenPairing {
+        duration: Duration,
+        code: Option<String>,
+    },
     ClosePairing,
     /// Invitee: send a pair request to the owner of this Contact Key (`/add`).
     Pair(ContactKey),
@@ -572,6 +577,8 @@ struct Engine {
     auto_connect: Option<Duration>,
     pending_pairs: HashMap<PublicKey, (Connection, SendStream, String)>,
     pairing_was_open: bool,
+    /// `/invite CODE`: the only invite code accepted in the open window.
+    pairing_code: Option<String>,
     downloads: PathBuf,
     max_file_size: u64,
     next_file_id: u64,
@@ -595,6 +602,7 @@ impl Engine {
             auto_connect: cfg.auto_connect,
             pending_pairs: HashMap::new(),
             pairing_was_open: false,
+            pairing_code: None,
             downloads: cfg.downloads,
             max_file_size: cfg.max_file_size,
             next_file_id: 1,
@@ -710,14 +718,17 @@ impl Engine {
                     });
                 }
             }
-            Command::OpenPairing(d) => {
-                *self.shared.pairing_until.lock().expect("pairing lock") = Some(Instant::now() + d);
+            Command::OpenPairing { duration, code } => {
+                *self.shared.pairing_until.lock().expect("pairing lock") =
+                    Some(Instant::now() + duration);
+                self.pairing_code = code;
                 // Always confirm, also when re-opening an already open window.
                 self.pairing_was_open = true;
                 self.sink.emit(Event::PairingWindow { open: true });
             }
             Command::ClosePairing => {
                 *self.shared.pairing_until.lock().expect("pairing lock") = None;
+                self.pairing_code = None;
                 self.check_pairing_window();
             }
             Command::Pair(key) => self.pair_dial(key),
@@ -1239,6 +1250,9 @@ impl Engine {
         let open = self.shared.pairing_open();
         if open != self.pairing_was_open {
             self.pairing_was_open = open;
+            if !open {
+                self.pairing_code = None;
+            }
             self.sink.emit(Event::PairingWindow { open });
         }
     }
@@ -1429,6 +1443,27 @@ impl Engine {
                     .insert(peer, (conn, send, codename.clone()))
                 {
                     old.close(close::DUPLICATE.into(), b"");
+                }
+                if let Some(expected) = self.pairing_code.clone() {
+                    let code = safety::invite_code(&peer);
+                    if code != expected {
+                        // Not the device the user invited: someone else has the
+                        // Contact Key.
+                        self.pair_decide(peer, false);
+                        self.sink.emit(Event::Warning(format!(
+                            "REJECTED a pair request from {} [{code}]: it does not match invite code {expected}. Someone else may have your Contact Key.",
+                            sanitize::text(&codename)
+                        )));
+                        return;
+                    }
+                    // A key change still needs the user's explicit confirmation.
+                    if !matches!(outcome, AddOutcome::KeyChanged { .. }) {
+                        self.pair_decide(peer, true);
+                        // The invite is used up.
+                        *self.shared.pairing_until.lock().expect("pairing lock") = None;
+                        self.check_pairing_window();
+                        return;
+                    }
                 }
                 self.sink.emit(Event::PairRequest {
                     peer,

@@ -47,6 +47,13 @@ control frames, so `PROTOCOL_VERSION` is 2 (v1 peers get a clear "update"
 message). Building needs CMake (Opus). Audio quality, echo and latency have
 not been judged by ear on two real PCs yet — that is the next step.
 
+## Invite codes (branch `fix/pair-requests`, 0.1.2; merged into `feature/voice`)
+
+Per-device 12-character invite codes (`safety::invite_code`, 60 bits from
+the public key). `/invite CODE` pairs only that device, automatically;
+plain `/invite` shows each request's code and refuses ambiguous
+`/accept NAME`. The code is always shown at the bottom-left.
+
 ## Next steps on a Mac
 
 1. Setup: install Xcode Command Line Tools (`xcode-select --install`) and

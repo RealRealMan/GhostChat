@@ -138,6 +138,41 @@ pub fn key_art(key: &PublicKey) -> String {
     randomart(&d, "ED25519")
 }
 
+/// Characters of an invite code: 12 × 5 bits = 60 bits. Fewer bits would let
+/// an attacker who learns the code generate keys until one matches it within
+/// the pairing window.
+const INVITE_CODE_LEN: usize = 12;
+
+/// The short code that identifies this device's key for `/invite CODE`,
+/// e.g. `7F3A-91C2-XK4P`. Derived from the public key, so it cannot be faked
+/// without a matching key.
+pub fn invite_code(key: &PublicKey) -> String {
+    let d = blake3::derive_key("ghostchat invite code v1", key.as_bytes());
+    let raw = data_encoding::BASE32_NOPAD.encode(&d[..8]);
+    let raw = &raw[..INVITE_CODE_LEN];
+    format!("{}-{}-{}", &raw[..4], &raw[4..8], &raw[8..])
+}
+
+/// Normalizes what a user typed (any case, with or without dashes/spaces,
+/// 0/1/8 read as O/I/B) into the canonical `XXXX-XXXX-XXXX`, or `None`.
+pub fn parse_invite_code(typed: &str) -> Option<String> {
+    let raw: String = typed
+        .chars()
+        .filter(|c| !matches!(c, '-' | ' '))
+        .map(|c| match c.to_ascii_uppercase() {
+            '0' => 'O',
+            '1' => 'I',
+            '8' => 'B',
+            c => c,
+        })
+        .collect();
+    let valid = raw.len() == INVITE_CODE_LEN
+        && raw
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || ('2'..='7').contains(&c));
+    valid.then(|| format!("{}-{}-{}", &raw[..4], &raw[4..8], &raw[8..]))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,6 +183,32 @@ mod tests {
             SecretKey::generate().public(),
             SecretKey::generate().public(),
         )
+    }
+
+    #[test]
+    fn invite_codes() {
+        let (a, b) = keys();
+        let code = invite_code(&a);
+        assert_eq!(code, invite_code(&a), "deterministic");
+        assert_ne!(code, invite_code(&b), "differs per key");
+        assert_eq!(code.len(), 14);
+        assert_eq!(code.matches('-').count(), 2);
+        // Typing variants all parse back to the same code.
+        let plain = code.replace('-', "");
+        assert_eq!(parse_invite_code(&code), Some(code.clone()));
+        assert_eq!(parse_invite_code(&plain.to_lowercase()), Some(code.clone()));
+        assert_eq!(
+            parse_invite_code(&format!(" {} {} ", &plain[..6], &plain[6..])),
+            Some(code.clone())
+        );
+        assert_eq!(
+            parse_invite_code("0I8A-AAAA-AAAA"),
+            Some("OIBA-AAAA-AAAA".into())
+        );
+        // Wrong length or characters.
+        assert_eq!(parse_invite_code("ABCD-EFGH"), None);
+        assert_eq!(parse_invite_code("ABCD-EFGH-IJKLM"), None);
+        assert_eq!(parse_invite_code("ABCD-EFGH-IJ!L"), None);
     }
 
     #[test]

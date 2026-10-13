@@ -90,3 +90,12 @@ After manual testing:
   vanished before the other side had typed them. The verify screen now stays
   open until closed, and `/verify NAME` on a verified contact shows your words
   again.
+
+Found in review (0.1.2):
+
+- **Two devices with the same codename could not be told apart** during
+  pairing, and `/accept NAME` silently took the newest request, which could
+  be an impostor holding the Contact Key. Fixed with per-device invite codes:
+  `/invite CODE` accepts only that device, automatically; plain `/invite`
+  shows each request's code, warns on duplicate names and refuses an
+  ambiguous `/accept NAME`.

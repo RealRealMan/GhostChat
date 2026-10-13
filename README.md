@@ -28,7 +28,7 @@ GhostChat does **not** invent its own cryptography. It uses well-known, widely u
 | **The connection** | QUIC + **TLS 1.3**, both sides authenticated with their Ed25519 keys | Every connection proves both computers hold the right secret keys. No passwords, no certificate authority, no server in the middle that can pretend to be someone. |
 | **Key exchange** | Ephemeral **X25519** (Diffie-Hellman), new for every connection | **Forward secrecy:** even if someone records your traffic and later steals your identity key, they cannot decrypt past conversations. |
 | **Message and file data** | **AES-256-GCM** (or ChaCha20-Poly1305), authenticated encryption | Content is unreadable to ISPs, Wi-Fi owners and the relay. Any changed, injected or replayed packet is rejected. |
-| **Who may connect** | Allowlist checked right after the TLS handshake | Strangers are cut off before any data is exchanged. Pair requests are only accepted during your `/invite` window and still need `/accept`. |
+| **Who may connect** | Allowlist checked right after the TLS handshake | Strangers are cut off before any data is exchanged. Pair requests are only accepted during your `/invite` window; with `/invite CODE` only the device with that code gets in. |
 | **Stopping impersonation** | Safety words: BLAKE3 hash of both public keys → 2 × 6 BIP39 words (66 bits each way) + randomart picture | If someone swapped a key in transit, the words and picture would not match on your call. |
 | **Files** | BLAKE3 checksum of the whole file | A corrupted or incomplete file is detected and deleted. Nothing is received without your `/accept`. |
 | **Contact list on disk** | XChaCha20-Poly1305, key in the OS secure store (Argon2id passphrase if no secure store exists) | Someone copying your files cannot read who your contacts are. |
@@ -84,14 +84,19 @@ Your secret identity key is created and stored in your computer's secure key sto
 
 Only **one** person sends a key: the **inviter**. The other person is the **contact** (in this example the contact's codename is `NIGHTOWL`).
 
+Every device has a 12-character **invite code** (e.g. `7F3A-91C2-XK4P`), shown when GhostChat starts and with `/mykey`. It is derived from the device's key, so nobody else can have the same code.
+
 | Step | Who | What to do |
 |---|---|---|
-| 1 | Inviter | Type `/invite`. Your Contact Key appears and is copied. A 10-minute pairing window opens. |
-| 2 | Inviter | Send the Contact Key to the contact (Signal, WhatsApp, email — it is not secret). |
-| 3 | Contact | Type `/add ` and paste the key, press Enter. |
-| 4 | Inviter | `INCOMING PAIR REQUEST: NIGHTOWL` appears. Type `/accept`. |
+| 1 | Contact | Tell the inviter your invite code (Signal, phone, ...). |
+| 2 | Inviter | Type `/invite CODE` with that code. Your Contact Key appears and is copied. A 10-minute pairing window opens — **only for that code**. |
+| 3 | Inviter | Send the Contact Key to the contact (Signal, WhatsApp, email — it is not secret). |
+| 4 | Contact | Type `/add ` and paste the key, press Enter. |
+| 5 | — | The request is accepted automatically because the code matches. Anyone else who tries with your Contact Key is **rejected**, and you see a red `REJECTED` warning. |
 
 You now see each other on the left, marked red `[?]` (unverified).
+
+**Without a code** (`/invite` alone), every request shows the requester's invite code, e.g. `INCOMING PAIR REQUEST: NIGHTOWL [7F3A-91C2-XK4P]`. Ask them for their code and accept with `/accept 7F3A-91C2-XK4P`. If two devices claim the same name, a red `DEVICES CLAIM TO BE` warning appears and `/accept NAME` is refused: someone else has your Contact Key.
 
 ## 6. Verify (once, on a voice or video call)
 
@@ -133,10 +138,11 @@ Each person verifies the other separately. If the other person missed your words
 
 | Command | Example | What it does |
 |---|---|---|
-| `/invite` | `/invite` | Show your Contact Key (copied to clipboard) and open a 10-minute pairing window. |
+| `/invite CODE` | `/invite 7F3A-91C2-XK4P` | Invite the device with this invite code: shows your Contact Key and opens a 10-minute window that accepts **only** that device, automatically. |
+| `/invite` | `/invite` | Open the window for anyone with your Contact Key; check each request's code before `/accept CODE`. |
 | `/invite stop` | `/invite stop` | Close the pairing window early. |
 | `/add KEY` | `/add GC1-...` | Send a pair request using someone's Contact Key. `/add` alone opens a `.ghostkey` file. |
-| `/accept` | `/accept` | Accept a pair request or an incoming file. |
+| `/accept [CODE]` | `/accept 7F3A-91C2-XK4P` | Accept a pair request (by invite code) or an incoming file. |
 | `/reject` | `/reject` | Refuse a pair request or an incoming file. |
 | `/verify NAME` | `/verify NIGHTOWL` | Verify a contact with safety words. On a verified contact, shows your words again. |
 | `/contacts` | `/contacts` | List contacts and whether they are verified. |
@@ -229,7 +235,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | **連線** | QUIC + **TLS 1.3**，雙方以 Ed25519 金鑰互相認證 | 每次連線都證明雙方持有正確的秘密金鑰。不用密碼，不依賴憑證機構，中間沒有伺服器可以冒充任何人。 |
 | **金鑰交換** | 每次連線都產生新的臨時 **X25519** 金鑰（Diffie-Hellman） | **前向保密**：即使有人錄下你的通訊，之後再偷走你的身份金鑰，也無法解密以前的對話。 |
 | **訊息與檔案內容** | **AES-256-GCM**（或 ChaCha20-Poly1305）認證加密 | 網絡供應商、Wi-Fi 擁有者和中繼站都看不到內容。任何被修改、插入或重播的封包都會被拒絕。 |
-| **誰可以連線** | TLS 握手後立即檢查白名單 | 陌生人在交換任何資料前已被切斷。配對請求只在你的 `/invite` 時段內接受，而且仍要你 `/accept`。 |
+| **誰可以連線** | TLS 握手後立即檢查白名單 | 陌生人在交換任何資料前已被切斷。配對請求只在你的 `/invite` 時段內接受；使用 `/invite 邀請碼` 時只有該裝置可以配對。 |
 | **防止冒充** | 安全字詞：用 BLAKE3 計算雙方公開金鑰 → 2 × 6 個 BIP39 英文字（每方向 66 位元）+ 圖案 | 如果金鑰在傳送途中被調包，通話時字詞和圖案就不會吻合。 |
 | **檔案** | 整個檔案的 BLAKE3 校驗碼 | 損壞或不完整的檔案會被偵測並刪除。未經你 `/accept` 不會接收任何檔案。 |
 | **磁碟上的聯絡人清單** | XChaCha20-Poly1305，金鑰存放在系統安全金鑰庫（沒有金鑰庫時用 Argon2id 密碼保護） | 即使有人複製你的檔案，也看不到你的聯絡人是誰。 |
@@ -285,14 +291,19 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 
 只需**一方**傳送金鑰。傳送金鑰的一方稱為**邀請方**，另一方是**通話對象**（例子中通話對象的代號是 `NIGHTOWL`）。
 
+每部裝置都有一個 12 個字的**邀請碼**（例如 `7F3A-91C2-XK4P`），開啟 GhostChat 時和輸入 `/mykey` 時會顯示。邀請碼由裝置的金鑰計算出來，其他人不可能有相同的邀請碼。
+
 | 步驟 | 誰 | 做甚麼 |
 |---|---|---|
-| 1 | 邀請方 | 輸入 `/invite`，畫面顯示聯絡金鑰（已自動複製），並開啟 10 分鐘配對時段。 |
-| 2 | 邀請方 | 把聯絡金鑰傳給通話對象（Signal、WhatsApp、電郵都可以，金鑰不是秘密）。 |
-| 3 | 通話對象 | 輸入 `/add `，貼上金鑰，按 Enter。 |
-| 4 | 邀請方 | 畫面出現 `INCOMING PAIR REQUEST: NIGHTOWL`，輸入 `/accept`。 |
+| 1 | 通話對象 | 把你的邀請碼告訴邀請方（Signal、電話等）。 |
+| 2 | 邀請方 | 輸入 `/invite 邀請碼`。畫面顯示聯絡金鑰（已自動複製），並開啟 10 分鐘配對時段——**只限這個邀請碼**。 |
+| 3 | 邀請方 | 把聯絡金鑰傳給通話對象（Signal、WhatsApp、電郵都可以，金鑰不是秘密）。 |
+| 4 | 通話對象 | 輸入 `/add `，貼上金鑰，按 Enter。 |
+| 5 | — | 邀請碼吻合，配對會自動完成。其他人即使拿到你的聯絡金鑰嘗試配對，也會被**拒絕**，你會看到紅色 `REJECTED` 警告。 |
 
 雙方左邊會出現對方名字，標示紅色 `[?]`（未核實）。
+
+**不用邀請碼**（只輸入 `/invite`）時，每個請求都會顯示對方的邀請碼，例如 `INCOMING PAIR REQUEST: NIGHTOWL [7F3A-91C2-XK4P]`。請向對方核對邀請碼，再輸入 `/accept 7F3A-91C2-XK4P`。如果有兩部裝置用同一個名字，會出現紅色 `DEVICES CLAIM TO BE` 警告，而 `/accept 名字` 會被拒絕：代表有其他人拿到了你的聯絡金鑰。
 
 ## 6. 核實（只需一次，用語音或視像通話）
 
@@ -335,10 +346,11 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 
 | 指令 | 例子 | 作用 |
 |---|---|---|
-| `/invite` | `/invite` | 顯示你的聯絡金鑰（已複製）並開啟 10 分鐘配對時段。 |
+| `/invite 邀請碼` | `/invite 7F3A-91C2-XK4P` | 邀請這個邀請碼的裝置：顯示你的聯絡金鑰，並開啟 10 分鐘時段，**只會**自動接受該裝置。 |
+| `/invite` | `/invite` | 為任何持有你聯絡金鑰的人開啟時段；`/accept 邀請碼` 前請先核對每個請求的邀請碼。 |
 | `/invite stop` | `/invite stop` | 提早關閉配對時段。 |
 | `/add 金鑰` | `/add GC1-...` | 用對方的聯絡金鑰發出配對請求。只輸入 `/add` 可開啟 `.ghostkey` 檔案。 |
-| `/accept` | `/accept` | 接受配對請求或傳入的檔案。 |
+| `/accept [邀請碼]` | `/accept 7F3A-91C2-XK4P` | 接受配對請求（以邀請碼指定）或傳入的檔案。 |
 | `/reject` | `/reject` | 拒絕配對請求或傳入的檔案。 |
 | `/verify 名字` | `/verify NIGHTOWL` | 用安全字詞核實聯絡人。對已核實的聯絡人會再次顯示你的字詞。 |
 | `/contacts` | `/contacts` | 列出聯絡人及核實狀態。 |

@@ -9,6 +9,7 @@ use ghostchat::{
     contact_key::ContactKey,
     contacts::{AddOutcome, Trust},
     engine::{Command, Event, Presence},
+    safety,
 };
 use iroh::address_lookup::MemoryLookup;
 
@@ -17,8 +18,10 @@ fn contact_key(n: &Node, codename: &str) -> ContactKey {
 }
 
 async fn open_window(n: &mut Node) {
-    n.handle
-        .send(Command::OpenPairing(Duration::from_secs(600)));
+    n.handle.send(Command::OpenPairing {
+        duration: Duration::from_secs(600),
+        code: None,
+    });
     n.wait_for(|e| matches!(e, Event::PairingWindow { open: true }).then_some(()))
         .await;
 }
@@ -108,9 +111,10 @@ async fn window_closes_again() {
     let lookup = MemoryLookup::new();
     let mut inviter = Node::start("INVITER", &lookup).await;
     let mut late = Node::start("LATE", &lookup).await;
-    inviter
-        .handle
-        .send(Command::OpenPairing(Duration::from_millis(300)));
+    inviter.handle.send(Command::OpenPairing {
+        duration: Duration::from_millis(300),
+        code: None,
+    });
     inviter
         .wait_for(|e| matches!(e, Event::PairingWindow { open: false }).then_some(()))
         .await;
@@ -217,4 +221,52 @@ async fn changed_key_is_blocked_until_reverified() {
                 .then_some(())
         })
         .await;
+}
+
+/// `/invite CODE`: two devices with the same codename ask; only the one with
+/// the invited code gets in, automatically, and the invite is then used up.
+#[tokio::test(flavor = "multi_thread")]
+async fn invite_code_accepts_only_the_invited_device() {
+    let lookup = MemoryLookup::new();
+    let mut inviter = Node::start("INVITER", &lookup).await;
+    let mut real = Node::start("NIGHTOWL", &lookup).await;
+    let impostor = Node::start("NIGHTOWL", &lookup).await;
+
+    inviter.handle.send(Command::OpenPairing {
+        duration: Duration::from_secs(600),
+        code: Some(safety::invite_code(&real.key)),
+    });
+    inviter
+        .wait_for(|e| matches!(e, Event::PairingWindow { open: true }).then_some(()))
+        .await;
+
+    // The impostor also has the Contact Key and asks first.
+    impostor
+        .handle
+        .send(Command::Pair(contact_key(&inviter, "INVITER")));
+    let warning = inviter
+        .wait_for(|e| match e {
+            Event::Warning(w) if w.contains("REJECTED") => Some(w.clone()),
+            Event::PairRequest { .. } => panic!("a non-matching request must not be offered"),
+            _ => None,
+        })
+        .await;
+    assert!(
+        warning.contains(&safety::invite_code(&impostor.key)),
+        "{warning}"
+    );
+
+    // The invited device is accepted without anyone pressing accept.
+    real.handle
+        .send(Command::Pair(contact_key(&inviter, "INVITER")));
+    let ik = inviter.key;
+    real.wait_for(|e| matches!(e, Event::Paired { peer, .. } if *peer == ik).then_some(()))
+        .await;
+    inviter
+        .wait_for(|e| matches!(e, Event::PairingWindow { open: false }).then_some(()))
+        .await;
+
+    let book = inviter.contacts.lock().unwrap();
+    assert!(book.get(&real.key).is_some(), "invited device added");
+    assert!(book.get(&impostor.key).is_none(), "impostor not added");
 }
