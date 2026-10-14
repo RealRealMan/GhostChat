@@ -2031,7 +2031,7 @@ dependencies = [
 
 [[package]]
 name = "ghostchat"
-version = "0.2.0-alpha"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "bip39",

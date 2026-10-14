@@ -1,6 +1,6 @@
 # GhostChat — Progress
 
-Status as of 2026-10-11, release **v0.1.1**. Source of truth: PRD-v0.3.md.
+Status as of 2026-10-14, release **v0.2.0**. Source of truth: PRD-v0.3.md.
 
 The development history was squashed into a single commit for the public
 repository, so per-phase commits no longer exist.
@@ -53,8 +53,8 @@ repository, so per-phase commits no longer exist.
 - Install, codename, `/invite` → `/add` → `/accept`, safety-word verification,
   chat, file transfer, panic: all working.
 - Cangjie (Chinese IME) input works after the IME fix below.
-- 0.2.0-alpha (branch `feature/voice`): voice calls between two Windows
-  PCs work with no echo; `/voicetest` works. Hearing yourself in the
+- 0.2.0: voice calls between two Windows PCs work with no echo at normal
+  volume (a faint echo only with very loud speakers); `/voicetest` works. Hearing yourself in the
   headphones turned out to be a local Windows/headset setting (Listen to
   this device / sidetone), not the call.
 - 0.1.1: the taskbar flashes when a message arrives while GhostChat is

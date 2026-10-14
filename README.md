@@ -112,7 +112,7 @@ Each person verifies the other separately. If the other person missed your words
 ## 7. Everyday use
 
 - **Chat:** click a name on the left (or `/chat NAME`), type, press Enter. GhostChat connects automatically when both of you are online.
-- **Voice calls (experimental):** with a contact who is online, type `/call NAME`. They see an incoming-call bar with **[ ANSWER ]** and **[ DECLINE ]** buttons (or `/answer`, `/hangup`). During the call the bar shows the time, your microphone level and theirs, **[ MUTE ]** and **[ HANG UP ]**. Headphones give the best sound; without them, echo cancellation keeps your speakers out of the microphone. `/devices` lists microphones and speakers; choose with `/mic N` and `/speaker N`. Try `/voicetest` before your first call. Both people need GhostChat 0.2 or newer.
+- **Voice calls:** with a contact who is online, type `/call NAME`. They see an incoming-call bar with **[ ANSWER ]** and **[ DECLINE ]** buttons (or `/answer`, `/hangup`). During the call the bar shows the time, your microphone level and theirs, **[ MUTE ]** and **[ HANG UP ]**. Headphones give the best sound; without them, echo cancellation keeps your speakers out of the microphone. `/devices` lists microphones and speakers; choose with `/mic N` and `/speaker N`. Try `/voicetest` before your first call. Both people need GhostChat 0.2 or newer.
 - **Alerts:** when GhostChat is in the background (or showing the idle screen), a new message, pair request or file offer flashes the taskbar icon (Dock icon on macOS). No system pop-up is used, so nothing ends up in the OS notification history. Turn off with `/flash off`. On Windows this also works while GhostChat is minimized; on macOS and Linux only while the window is not minimized.
 - **Send a file:** drag it onto the window, or `/send`. The other person must `/accept` it. Files arrive in `Downloads/GhostChat/`.
 - **Commands start with `/`.** Text without `/` is sent as a message. To send a message that starts with `/`, type `//`.
@@ -157,7 +157,7 @@ Each person verifies the other separately. If the other person missed your words
 | `/connect [NAME]` | `/connect NIGHTOWL` | Connect now instead of waiting for the automatic retry. |
 | `/disconnect [NAME]` | `/disconnect` | Close the secure channel. |
 | `/send [FILE]` | `/send` | Send a file. Without a file name, a file picker opens. |
-| `/call [NAME]` | `/call NIGHTOWL` | *(experimental)* Start an end-to-end encrypted voice call with a connected contact. |
+| `/call [NAME]` | `/call NIGHTOWL` | Start an end-to-end encrypted voice call with a connected contact. |
 | `/answer` | `/answer` | Answer an incoming call. |
 | `/hangup` | `/hangup` | End the call, cancel it, or decline an incoming call. |
 | `/mute [on\|off]` | `/mute` | Mute or unmute your microphone during calls. |
@@ -192,6 +192,7 @@ Each person verifies the other separately. If the other person missed your words
 | Contact stays offline `○` | They must have GhostChat open. It retries every 30 seconds; or type `/connect`. |
 | Red **INTRUSION WARNING: KEY MISMATCH** | Someone with a new key uses a known codename. Chat is blocked. Only continue if that person told you **by voice** that they reinstalled, then verify again. |
 | You hear your own voice in your headphones during a call | That is your computer, not the call: the other side never sends your voice back (an `ECHO GUARD` tag shows if it would). Turn off "Listen to this device" (Sound settings → Recording → your microphone → Properties → Listen) and any *sidetone* option of your headset. |
+| The other person hears a faint echo of themselves | Your speakers are very loud. Turn them down a little or use headphones; at normal volume the echo cancellation removes it. |
 | Microphone shows `NO SIGNAL` | It is muted or turned down to zero in Windows. Check the Sound settings, or pick another with `/devices` and `/mic N`. |
 | Pair request never arrives | The inviter's 10-minute window may have closed. Ask them to `/invite` again. |
 
@@ -322,7 +323,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 ## 7. 日常使用
 
 - **傾偈**：按左邊的名字（或 `/chat 名字`），輸入文字，按 Enter。雙方都在線時會自動連線。
-- **語音通話（試驗功能）**：通話對象在線時，輸入 `/call 名字`。對方會看到來電列，有 **[ ANSWER ]**（接聽）和 **[ DECLINE ]**（拒絕）按鈕，或輸入 `/answer`、`/hangup`。通話期間會顯示時間、你和對方的音量，以及 **[ MUTE ]**（靜音）和 **[ HANG UP ]**（掛線）按鈕。戴耳機音質最好；不戴耳機時，回音消除會避免喇叭聲音傳回麥克風。`/devices` 列出麥克風和喇叭，用 `/mic 編號` 和 `/speaker 編號` 選擇。第一次通話前可先用 `/voicetest` 測試。雙方都需要 GhostChat 0.2 或以上版本。
+- **語音通話**：通話對象在線時，輸入 `/call 名字`。對方會看到來電列，有 **[ ANSWER ]**（接聽）和 **[ DECLINE ]**（拒絕）按鈕，或輸入 `/answer`、`/hangup`。通話期間會顯示時間、你和對方的音量，以及 **[ MUTE ]**（靜音）和 **[ HANG UP ]**（掛線）按鈕。戴耳機音質最好；不戴耳機時，回音消除會避免喇叭聲音傳回麥克風。`/devices` 列出麥克風和喇叭，用 `/mic 編號` 和 `/speaker 編號` 選擇。第一次通話前可先用 `/voicetest` 測試。雙方都需要 GhostChat 0.2 或以上版本。
 - **提示**：GhostChat 在背景（或顯示閒置畫面）時，收到新訊息、配對請求或檔案，會令工作列圖示閃動（macOS 是 Dock 圖示跳動）。不會使用系統彈出通知，所以系統通知記錄不會留下任何內容。可用 `/flash off` 關閉。Windows 上即使視窗縮到最小亦有效；macOS 和 Linux 只在視窗未縮到最小時有效。
 - **傳送檔案**：把檔案拖入視窗，或輸入 `/send`。對方要 `/accept` 才會開始傳送。檔案存放在 `下載/GhostChat/`。
 - **指令以 `/` 開頭。** 沒有 `/` 的文字會當作訊息傳給對方。如果訊息本身要以 `/` 開頭，請輸入 `//`。
@@ -368,7 +369,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | `/connect [名字]` | `/connect NIGHTOWL` | 立即連線，不用等自動重試。 |
 | `/disconnect [名字]` | `/disconnect` | 關閉加密通道。 |
 | `/send [檔案]` | `/send` | 傳送檔案。沒有指定檔案時會打開選擇視窗。 |
-| `/call [名字]` | `/call NIGHTOWL` | *（試驗功能）* 與已連線的聯絡人進行端對端加密語音通話。 |
+| `/call [名字]` | `/call NIGHTOWL` | 與已連線的聯絡人進行端對端加密語音通話。 |
 | `/answer` | `/answer` | 接聽來電。 |
 | `/hangup` | `/hangup` | 掛線、取消撥出，或拒絕來電。 |
 | `/mute [on\|off]` | `/mute` | 通話時開關麥克風靜音。 |
@@ -403,6 +404,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | 聯絡人一直離線 `○` | 對方要開着 GhostChat。程式每 30 秒自動重試，也可輸入 `/connect`。 |
 | 紅色 **INTRUSION WARNING: KEY MISMATCH** | 有人用新金鑰冒用已知代號，對話已封鎖。只有對方**親口**告訴你他重新安裝過，才可繼續並重新核實。 |
 | 通話時在耳機聽到自己的聲音 | 這是你的電腦造成的，並非通話：對方不會把你的聲音傳回來（如有可能，通話列會顯示 `ECHO GUARD`）。請關閉「聆聽此裝置」（聲音設定 → 錄製 → 你的麥克風 → 內容 → 聆聽），以及耳機的 *側音*（sidetone）功能。 |
+| 對方聽到自己微弱的回音 | 你的喇叭太大聲。把音量調低一點或改用耳機；正常音量下回音消除會將回音去除。 |
 | 麥克風顯示 `NO SIGNAL` | 麥克風在 Windows 被靜音或音量調至零。請檢查聲音設定，或用 `/devices` 和 `/mic 編號` 選擇其他麥克風。 |
 | 收不到配對請求 | 邀請方的 10 分鐘時段可能已過，請對方再輸入 `/invite`。 |
 
