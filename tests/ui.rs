@@ -525,3 +525,23 @@ fn duplicate_pair_requests_need_the_invite_code() {
         "{alice_key} must not pair the fake"
     );
 }
+
+/// `/voicetest` records, plays back and reports. Headless tests have no
+/// sound card, so it reports a silent microphone.
+#[test]
+fn voice_test_runs_and_reports() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let lookup = MemoryLookup::new();
+    let mut w = open(&rt, "ui-voicetest", &lookup);
+    w.frames(2);
+    w.h.key_press(egui::Key::Space);
+    w.frames(3);
+    w.type_line("tester");
+    w.type_line("/voicetest");
+    assert!(w.has_line("VOICE TEST: say something"));
+    w.frames(3);
+    w.shot("16-voice-test");
+    w.wait("voice test result", |a| {
+        has(a, "VOICE TEST: your microphone picked up (almost) nothing")
+    });
+}

@@ -126,6 +126,10 @@ pub struct Core {
     pub meter: voice::Meter,
     /// Last `/devices` listing (microphones, speakers), so `/mic 2` works.
     pub devices: Option<(Vec<String>, Vec<String>)>,
+    /// A running `/voicetest`.
+    pub voice_test: Option<voice::VoiceTest>,
+    /// No sound hardware (headless UI tests).
+    pub silent_audio: bool,
 }
 
 impl Core {
@@ -163,6 +167,8 @@ impl Core {
             muted: false,
             meter,
             devices: None,
+            voice_test: None,
+            silent_audio: false,
         }
     }
 
@@ -189,6 +195,99 @@ impl Core {
             kind,
             text: text.into(),
         });
+    }
+
+    fn start_voice_test(&mut self, settings: &Settings) {
+        if self.call.is_some() {
+            self.reply(LineKind::Warn, "not during a call — /hangup first");
+            return;
+        }
+        if self.voice_test.is_some() {
+            self.reply(LineKind::Warn, "a voice test is already running");
+            return;
+        }
+        let backend = if self.silent_audio {
+            voice::AudioBackend::Silent
+        } else {
+            voice::AudioBackend::Devices(voice::DeviceChoice {
+                input: settings.mic.clone(),
+                output: settings.speaker.clone(),
+            })
+        };
+        self.voice_test = Some(voice::VoiceTest::start(&backend, self.meter.clone()));
+        self.reply(
+            LineKind::System,
+            format!(
+                "VOICE TEST: say something for {} seconds (e.g. count to five). It is then played back so you hear yourself as others will. Nothing leaves this computer.",
+                voice::TEST_RECORD.as_secs()
+            ),
+        );
+    }
+
+    /// Reports a finished `/voicetest`. Called every frame.
+    pub fn poll_voice_test(&mut self) {
+        let Some(t) = &self.voice_test else {
+            return;
+        };
+        let (kind, text) = match t.phase() {
+            voice::TestPhase::Done if t.peak() < VOICE_TEST_QUIET => (
+                LineKind::Warn,
+                "VOICE TEST: your microphone picked up (almost) nothing. Check that it is not muted or turned down in the Windows sound settings, or choose another with /devices."
+                    .to_string(),
+            ),
+            voice::TestPhase::Done => (
+                LineKind::Ok,
+                "[ OK ] VOICE TEST: microphone works. Did you hear yourself played back?\n  \
+                 Yes: your speakers work too, and that is how you sound in a call.\n  \
+                 No: check the speakers or headphones, or choose others with /devices."
+                    .to_string(),
+            ),
+            voice::TestPhase::Failed => (
+                LineKind::Warn,
+                format!(
+                    "VOICE TEST failed: {}",
+                    sanitize::text(&t.error().unwrap_or_default())
+                ),
+            ),
+            _ => return,
+        };
+        self.voice_test = None;
+        self.reply(kind, text);
+    }
+
+    /// The bottom bar while `/voicetest` runs.
+    pub fn voice_test_panel(&self, ui: &mut egui::Ui, p: &Palette) -> Option<Cmd> {
+        let t = self.voice_test.as_ref()?;
+        let mut clicked = None;
+        ui.horizontal(|ui| {
+            let (title, meter) = match t.phase() {
+                voice::TestPhase::Recording => (
+                    "<< VOICE TEST >> RECORDING — say something",
+                    format!("MIC {}", level_bar(self.meter.mic())),
+                ),
+                _ => (
+                    "<< VOICE TEST >> PLAYING BACK — this is how you sound to others",
+                    format!("OUT {}", level_bar(self.meter.peer())),
+                ),
+            };
+            ui.label(RichText::new(title).color(p.bright).strong());
+            ui.label(RichText::new(meter).color(p.fg));
+            if ui
+                .button(RichText::new("[ STOP ]").color(p.danger).strong())
+                .clicked()
+            {
+                clicked = Some(Cmd::VoiceTest { stop: true });
+            }
+        });
+        if t.phase() == voice::TestPhase::Recording && self.meter.no_signal() {
+            ui.label(
+                RichText::new(
+                    "Your microphone sends no sound — check it is not muted or turned down in the Windows sound settings, or choose another with /devices.",
+                )
+                .color(p.danger),
+            );
+        }
+        clicked
     }
 
     fn list_devices(&mut self, settings: &Settings) {
@@ -322,6 +421,8 @@ impl Core {
             // Short red glitch, the same effect as an intrusion alert.
             self.alert_until = Some(Instant::now() + Duration::from_millis(1200));
         }
+        // The devices belong to the call now.
+        self.voice_test = None;
         self.call = match state {
             CallState::Ended(_) => None,
             s => Some((peer, s, Instant::now())),
@@ -821,6 +922,12 @@ Only accept it if {who} told you (by voice) to expect it."
                 );
             }
             Cmd::Devices => self.list_devices(settings),
+            Cmd::VoiceTest { stop: true } => {
+                if self.voice_test.take().is_some() {
+                    self.reply(LineKind::System, "voice test stopped");
+                }
+            }
+            Cmd::VoiceTest { stop: false } => self.start_voice_test(settings),
             Cmd::Mic(arg) => self.choose_device(settings, true, arg),
             Cmd::Speaker(arg) => self.choose_device(settings, false, arg),
             Cmd::Contacts => self.list_contacts(),
@@ -1285,12 +1392,18 @@ Only accept it if {who} told you (by voice) to expect it."
                     button(ui, "[ HANG UP ]", p.danger, Cmd::Hangup);
                 });
                 ui.horizontal(|ui| {
-                    let mic = if self.muted {
-                        "MIC [ MUTED          ]".to_string()
+                    let no_signal = !self.muted && self.meter.no_signal();
+                    let (mic, color) = if self.muted {
+                        ("MIC [ MUTED          ]".to_string(), p.fg)
+                    } else if no_signal {
+                        ("MIC [ NO SIGNAL      ]".to_string(), p.danger)
                     } else {
-                        format!("MIC {}", level_bar(self.meter.mic()))
+                        (format!("MIC {}", level_bar(self.meter.mic())), p.fg)
                     };
-                    ui.label(RichText::new(mic).color(p.fg));
+                    ui.label(RichText::new(mic).color(color));
+                    if !self.muted && self.meter.echo_guard() {
+                        ui.label(RichText::new("ECHO GUARD").color(p.warn).small());
+                    }
                     ui.label(
                         RichText::new(format!("IN {}", level_bar(self.meter.peer()))).color(p.fg),
                     );
@@ -1301,6 +1414,14 @@ Only accept it if {who} told you (by voice) to expect it."
                             .small(),
                     );
                 });
+                if !self.muted && self.meter.no_signal() {
+                    ui.label(
+                        RichText::new(
+                            "Your microphone sends no sound — check it is not muted or turned down in the Windows sound settings, or choose another with /devices.",
+                        )
+                        .color(p.danger),
+                    );
+                }
             }
         }
         clicked
@@ -1579,6 +1700,9 @@ pub fn my_key(me: PublicKey, settings: &Settings) -> ContactKey {
 fn on_off(b: bool) -> &'static str {
     if b { "on" } else { "off" }
 }
+
+/// Below this peak level a voice test heard (almost) nothing.
+const VOICE_TEST_QUIET: f32 = 0.1;
 
 /// `[||||||..........]`: ASCII so it renders with the bundled font.
 fn level_bar(level: f32) -> String {

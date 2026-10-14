@@ -11,8 +11,26 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 
-/// Errors reported by the audio callbacks (device unplugged, ...).
-pub type ErrorTx = mpsc::Sender<String>;
+/// What an audio callback reported.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeviceError {
+    /// A dropout (buffer underrun/overrun) or an automatic re-route: a short
+    /// glitch at most, the stream keeps running.
+    Glitch,
+    /// The stream stopped working (device unplugged, Windows reset it after a
+    /// mute or format change, ...) and must be opened again.
+    Lost(String),
+}
+
+pub type ErrorTx = mpsc::Sender<DeviceError>;
+
+fn classify(what: &str, e: &cpal::Error) -> DeviceError {
+    use cpal::ErrorKind::{DeviceChanged, RealtimeDenied, Xrun};
+    match e.kind() {
+        Xrun | DeviceChanged | RealtimeDenied => DeviceError::Glitch,
+        _ => DeviceError::Lost(format!("{what}: {e}")),
+    }
+}
 
 pub struct Input {
     _stream: cpal::Stream,
@@ -78,7 +96,7 @@ fn build_input<T: SizedSample + Copy + Send + 'static>(
                 let _ = tx.send(mono);
             },
             move |e| {
-                let _ = errors.send(format!("microphone: {e}"));
+                let _ = errors.send(classify("microphone", &e));
             },
             None,
         )
@@ -138,7 +156,7 @@ fn build_output<T: SizedSample + Copy + Send + 'static>(
                 }
             },
             move |e| {
-                let _ = errors.send(format!("speakers: {e}"));
+                let _ = errors.send(classify("speakers", &e));
             },
             None,
         )
@@ -179,4 +197,34 @@ pub fn list() -> Result<(Vec<String>, Vec<String>), String> {
     })
     .join()
     .map_err(|_| "listing audio devices failed".to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cpal::ErrorKind;
+
+    #[test]
+    fn dropouts_are_glitches_and_resets_are_lost() {
+        for kind in [
+            ErrorKind::Xrun,
+            ErrorKind::DeviceChanged,
+            ErrorKind::RealtimeDenied,
+        ] {
+            assert_eq!(
+                classify("microphone", &cpal::Error::new(kind)),
+                DeviceError::Glitch
+            );
+        }
+        for kind in [
+            ErrorKind::StreamInvalidated,
+            ErrorKind::DeviceNotAvailable,
+            ErrorKind::DeviceBusy,
+        ] {
+            assert!(matches!(
+                classify("microphone", &cpal::Error::new(kind)),
+                DeviceError::Lost(r) if r.starts_with("microphone")
+            ));
+        }
+    }
 }

@@ -28,6 +28,9 @@ pub enum Cmd {
     Hangup,
     Mute(Option<bool>),
     Devices,
+    VoiceTest {
+        stop: bool,
+    },
     Mic(Option<String>),
     Speaker(Option<String>),
     Codename(Option<String>),
@@ -96,6 +99,10 @@ pub const HELP: &[(&str, &str)] = &[
         "mute or unmute your microphone during calls",
     ),
     ("/devices", "list microphones and speakers"),
+    (
+        "/voicetest",
+        "record 5 seconds and play them back: check microphone and speakers before a call",
+    ),
     (
         "/mic N|default",
         "choose the microphone for calls (number from /devices)",
@@ -198,6 +205,9 @@ pub fn parse(input: &str) -> Cmd {
         "hangup" | "endcall" => Cmd::Hangup,
         "mute" => Cmd::Mute(on_off_arg(rest)),
         "devices" | "audio" => Cmd::Devices,
+        "voicetest" | "mictest" => Cmd::VoiceTest {
+            stop: matches!(rest.trim().to_ascii_lowercase().as_str(), "stop" | "off"),
+        },
         "mic" | "microphone" => Cmd::Mic(arg(rest)),
         "speaker" | "speakers" => Cmd::Speaker(arg(rest)),
         "codename" | "nick" => Cmd::Codename(arg(rest)),
@@ -310,6 +320,8 @@ mod tests {
         assert_eq!(parse("/mute"), Cmd::Mute(None));
         assert_eq!(parse("/mute off"), Cmd::Mute(Some(false)));
         assert_eq!(parse("/devices"), Cmd::Devices);
+        assert_eq!(parse("/voicetest"), Cmd::VoiceTest { stop: false });
+        assert_eq!(parse("/mictest stop"), Cmd::VoiceTest { stop: true });
         assert_eq!(parse("/mic 2"), Cmd::Mic(Some("2".into())));
         assert_eq!(
             parse("/speaker default"),

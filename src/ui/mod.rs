@@ -394,6 +394,7 @@ impl App {
             Zeroizing::new(secrets.storage_key),
             meter,
         );
+        core.silent_audio = self.net_override.is_some();
         drop(secrets);
         for n in notes {
             core.console(LineKind::Warn, n);
@@ -962,17 +963,24 @@ impl App {
                 ui.label(RichText::new(hint).color(p.dim).small());
             });
 
-        if core.call.is_some() {
+        core.poll_voice_test();
+        if core.call.is_some() || core.voice_test.is_some() {
             // Plain background: the ringing glitch overlay is the effect, and
             // the buttons must stay readable.
             let clicked = egui::Panel::bottom("call")
                 .frame(egui::Frame::new().fill(p.panel).inner_margin(6.0))
-                .show(ui, |ui| core.call_panel(ui, p))
+                .show(ui, |ui| {
+                    if core.call.is_some() {
+                        core.call_panel(ui, p)
+                    } else {
+                        core.voice_test_panel(ui, p)
+                    }
+                })
                 .inner;
             if let Some(cmd) = clicked {
                 action = core.handle(cmd, &profile, &mut self.settings, &ctx);
             }
-            // Level meters and the call timer move while a call is up.
+            // Level meters and the call timer move while a call or test runs.
             ctx.request_repaint_after(Duration::from_millis(100));
         }
 
