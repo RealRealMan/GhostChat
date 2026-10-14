@@ -537,6 +537,11 @@ fn voice_test_runs_and_reports() {
     w.h.key_press(egui::Key::Space);
     w.frames(3);
     w.type_line("tester");
+    w.type_line("/help");
+    assert!(w.has_line("== VOICE CALLS =="));
+    w.frames(2);
+    w.shot("17-help");
+    w.type_line("/clear");
     w.type_line("/voicetest");
     assert!(w.has_line("VOICE TEST: say something"));
     w.frames(3);

@@ -4,7 +4,7 @@
 pub enum Cmd {
     /// A chat message (text not starting with `/`, or `//...`).
     Text(String),
-    Help,
+    Help(Option<String>),
     Invite {
         stop: bool,
         /// `/invite CODE`: only the device with this invite code (unparsed).
@@ -50,98 +50,130 @@ pub enum Cmd {
     Unknown(String),
 }
 
-pub const HELP: &[(&str, &str)] = &[
-    (
-        "/invite CODE",
-        "invite the device with this invite code (they tell you their code); shows your Contact Key",
-    ),
-    (
-        "/invite",
-        "open a pairing window for anyone with your Contact Key (check the request code)",
-    ),
-    ("/invite stop", "close the pairing window"),
-    (
-        "/add KEY",
-        "add a contact: paste their Contact Key (or /add alone to open a .ghostkey file)",
-    ),
-    (
-        "/accept, /reject",
-        "answer a pair request or an incoming file",
-    ),
-    (
-        "/verify NAME",
-        "verify a contact with safety words (on a voice/video call)",
-    ),
-    (
-        "/chat NAME",
-        "switch to a conversation (or click the name on the left)",
-    ),
-    (
-        "/connect [NAME]",
-        "connect now (GhostChat also retries automatically)",
-    ),
-    ("/disconnect [NAME]", "close the secure channel"),
-    (
-        "/send [FILE]",
-        "send a file (or drag a file onto the window)",
-    ),
-    (
-        "/call [NAME]",
-        "start a voice call (E2EE) with a connected contact",
-    ),
-    ("/answer", "answer an incoming call"),
-    (
-        "/hangup",
-        "end the call, cancel it, or decline an incoming call",
-    ),
-    (
-        "/mute [on|off]",
-        "mute or unmute your microphone during calls",
-    ),
-    ("/devices", "list microphones and speakers"),
-    (
-        "/voicetest",
-        "record 5 seconds and play them back: check microphone and speakers before a call",
-    ),
-    (
-        "/mic N|default",
-        "choose the microphone for calls (number from /devices)",
-    ),
-    (
-        "/speaker N|default",
-        "choose the speakers for calls (number from /devices)",
-    ),
-    ("/codename NAME", "change your codename"),
-    (
-        "/alias NAME NEW",
-        "show a contact under your own name for them (/alias NAME to reset)",
-    ),
-    ("/remove NAME", "delete a contact"),
-    ("/contacts", "list contacts and their trust state"),
-    (
-        "/mykey [save]",
-        "show your Contact Key and randomart (save = write a .ghostkey file)",
-    ),
-    ("/theme green|amber|ice", "change colours"),
-    ("/fx on|off", "retro effects (scanlines, flicker)"),
-    (
-        "/flash on|off",
-        "flash the taskbar / Dock icon when a message arrives in the background",
-    ),
-    (
-        "/clear",
-        "wipe this conversation from the screen and memory",
-    ),
-    (
-        "/panic  or  F12",
-        "wipe everything in memory and exit immediately",
-    ),
-    (
-        "/panicwipe on|off",
-        "also delete identity + contacts on panic (default off)",
-    ),
-    ("/quit", "close GhostChat"),
+/// One group of commands in `/help`.
+pub struct HelpSection {
+    /// `/help KEY` shows only this section.
+    pub key: &'static str,
+    pub title: &'static str,
+    pub items: &'static [(&'static str, &'static str)],
+}
+
+/// Grouped like the README command reference. Descriptions are kept short so
+/// every line fits the window without wrapping.
+pub const HELP: &[HelpSection] = &[
+    HelpSection {
+        key: "pairing",
+        title: "PAIRING & CONTACTS",
+        items: &[
+            (
+                "/invite CODE",
+                "pair with the device that has this invite code",
+            ),
+            ("/invite", "pair with anyone who has your Contact Key"),
+            ("/invite stop", "close the pairing window"),
+            ("/add KEY", "send a pair request (paste their Contact Key)"),
+            (
+                "/accept, /reject",
+                "answer a pair request (by code) or a file",
+            ),
+            (
+                "/verify NAME",
+                "check safety words with them on a voice call",
+            ),
+            ("/contacts", "list contacts and whether they are verified"),
+            ("/alias NAME NEW", "your own name for a contact"),
+            ("/remove NAME", "delete a contact"),
+        ],
+    },
+    HelpSection {
+        key: "chat",
+        title: "CHAT & FILES",
+        items: &[
+            ("/chat NAME", "open a conversation (or click the name)"),
+            ("/connect [NAME]", "connect now instead of waiting"),
+            ("/disconnect [NAME]", "close the secure channel"),
+            ("/send [FILE]", "send a file (or drag it onto the window)"),
+            ("/clear", "wipe this conversation from screen and memory"),
+        ],
+    },
+    HelpSection {
+        key: "voice",
+        title: "VOICE CALLS",
+        items: &[
+            ("/call [NAME]", "start an end-to-end encrypted voice call"),
+            ("/answer", "answer an incoming call"),
+            ("/hangup", "end, cancel or decline a call"),
+            ("/mute [on|off]", "mute your microphone"),
+            (
+                "/voicetest",
+                "record 5 s and play back: check mic and speakers",
+            ),
+            ("/devices", "list microphones and speakers"),
+            (
+                "/mic N, /speaker N",
+                "choose a device from /devices (0 = default)",
+            ),
+        ],
+    },
+    HelpSection {
+        key: "look",
+        title: "YOU & THE LOOK",
+        items: &[
+            ("/mykey [save]", "your invite code, Contact Key and picture"),
+            ("/codename NAME", "change your codename"),
+            ("/theme green|amber|ice", "change colours"),
+            ("/fx on|off", "scanlines and flicker"),
+            ("/flash on|off", "flash the taskbar for new messages"),
+        ],
+    },
+    HelpSection {
+        key: "safety",
+        title: "SAFETY",
+        items: &[
+            ("/panic  or  F12", "wipe memory and exit at once"),
+            (
+                "/panicwipe on|off",
+                "panic also deletes identity and contacts",
+            ),
+            ("/quit", "close GhostChat"),
+        ],
+    },
 ];
+
+/// The `/help` text: every section, or only the one named by `topic`.
+pub fn help_text(topic: Option<&str>) -> Result<String, String> {
+    let keys: Vec<&str> = HELP.iter().map(|s| s.key).collect();
+    let sections: Vec<&HelpSection> = match topic.map(|t| t.trim().to_ascii_lowercase()) {
+        None => HELP.iter().collect(),
+        Some(t) => match HELP.iter().find(|s| s.key == t) {
+            Some(s) => vec![s],
+            None => {
+                return Err(format!(
+                    "no help section \"{t}\" — try /help {}",
+                    keys.join(", /help ")
+                ));
+            }
+        },
+    };
+    let width = HELP
+        .iter()
+        .flat_map(|s| s.items.iter())
+        .map(|(c, _)| c.chars().count())
+        .max()
+        .unwrap_or(0)
+        + 2;
+    let mut out = String::new();
+    for s in sections {
+        out.push_str(&format!("\n== {} ==\n", s.title));
+        for (c, d) in s.items {
+            out.push_str(&format!("  {c:<width$}{d}\n"));
+        }
+    }
+    if topic.is_none() {
+        out.push_str(&format!("\nOne section only: /help {}", keys.join(" | ")));
+    }
+    Ok(out.trim_start_matches('\n').trim_end().to_string())
+}
 
 fn arg(rest: &str) -> Option<String> {
     let r = rest.trim();
@@ -166,7 +198,7 @@ pub fn parse(input: &str) -> Cmd {
     };
     let (name, rest) = body.split_once(char::is_whitespace).unwrap_or((body, ""));
     match name.to_ascii_lowercase().as_str() {
-        "help" | "h" | "?" => Cmd::Help,
+        "help" | "h" | "?" => Cmd::Help(arg(rest)),
         "invite" => {
             let stop = matches!(
                 rest.trim().to_ascii_lowercase().as_str(),
@@ -241,8 +273,9 @@ mod tests {
 
     #[test]
     fn commands_with_and_without_args() {
-        assert_eq!(parse("/help"), Cmd::Help);
-        assert_eq!(parse("/HELP"), Cmd::Help);
+        assert_eq!(parse("/help"), Cmd::Help(None));
+        assert_eq!(parse("/HELP"), Cmd::Help(None));
+        assert_eq!(parse("/help voice"), Cmd::Help(Some("voice".into())));
         assert_eq!(
             parse("/invite"),
             Cmd::Invite {
@@ -327,6 +360,20 @@ mod tests {
             parse("/speaker default"),
             Cmd::Speaker(Some("default".into()))
         );
+    }
+
+    #[test]
+    fn help_is_grouped_and_fits_the_window() {
+        let all = help_text(None).unwrap();
+        for s in HELP {
+            assert!(all.contains(s.title), "{}", s.title);
+        }
+        for line in all.lines() {
+            assert!(line.chars().count() <= 80, "too long: {line}");
+        }
+        let voice = help_text(Some("Voice")).unwrap();
+        assert!(voice.contains("/call") && !voice.contains("/invite"));
+        assert!(help_text(Some("nope")).unwrap_err().contains("/help voice"));
     }
 
     #[test]

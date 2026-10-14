@@ -174,7 +174,7 @@ Each person verifies the other separately. If the other person missed your words
 | `/codename NAME` | `/codename GHOST-01` | Change your codename. Contacts see the new name. |
 | `/mykey` | `/mykey` | Show your Contact Key and picture. `/mykey save` saves it as a `.ghostkey` file. |
 | `/theme NAME` | `/theme amber` | Colours: `green`, `amber` or `ice`. |
-| `/help` | `/help` | Show all commands. |
+| `/help [SECTION]` | `/help voice` | Show all commands, grouped; or one section: `pairing`, `chat`, `voice`, `look`, `safety`. |
 
 ### Safety
 
@@ -385,7 +385,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | `/codename 名字` | `/codename GHOST-01` | 更改你的代號，聯絡人會看到新名字。 |
 | `/mykey` | `/mykey` | 顯示你的聯絡金鑰和圖案。`/mykey save` 另存為 `.ghostkey` 檔案。 |
 | `/theme 名稱` | `/theme amber` | 顏色主題：`green`、`amber` 或 `ice`。 |
-| `/help` | `/help` | 顯示所有指令。 |
+| `/help [分類]` | `/help voice` | 分類顯示所有指令；或只顯示一個分類：`pairing`、`chat`、`voice`、`look`、`safety`。 |
 
 ### 安全
 

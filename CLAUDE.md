@@ -44,8 +44,11 @@ cpal capture/playback → sonora (echo cancellation, noise suppression, AGC)
 → Opus 32 kbit/s **constant bitrate** (VBR would leak speech patterns) →
 QUIC datagrams on the existing iroh connection. Call signaling uses new
 control frames, so `PROTOCOL_VERSION` is 2 (v1 peers get a clear "update"
-message). Building needs CMake (Opus). Audio quality, echo and latency have
-not been judged by ear on two real PCs yet — that is the next step.
+message). Building needs CMake (Opus). Tested on two real Windows PCs:
+calls work with no echo. Device resets (e.g. toggling the mic in Windows)
+re-open the stream instead of ending the call; `/voicetest` checks the
+mic and speakers locally. A user who hears themselves in headphones has
+Windows "Listen to this device" or headset sidetone on (not the call).
 
 ## Invite codes (branch `fix/pair-requests`, 0.1.2; merged into `feature/voice`)
 

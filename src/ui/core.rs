@@ -747,13 +747,10 @@ Only accept it if {who} told you (by voice) to expect it."
     ) -> Action {
         match cmd {
             Cmd::Text(text) => self.send_text(text),
-            Cmd::Help => {
-                let mut s = String::from("COMMANDS\n");
-                for (c, d) in commands::HELP {
-                    s.push_str(&format!("  {c:<26} {d}\n"));
-                }
-                self.reply(LineKind::Block, s.trim_end());
-            }
+            Cmd::Help(topic) => match commands::help_text(topic.as_deref()) {
+                Ok(text) => self.reply(LineKind::Block, text),
+                Err(e) => self.reply(LineKind::Warn, e),
+            },
             Cmd::Invite { stop: true, .. } => self.engine.send(Command::ClosePairing),
             Cmd::Invite { stop: false, code } => self.invite(settings, ctx, code),
             Cmd::Add(None) => {

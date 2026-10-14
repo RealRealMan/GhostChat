@@ -53,6 +53,10 @@ repository, so per-phase commits no longer exist.
 - Install, codename, `/invite` → `/add` → `/accept`, safety-word verification,
   chat, file transfer, panic: all working.
 - Cangjie (Chinese IME) input works after the IME fix below.
+- 0.2.0-alpha (branch `feature/voice`): voice calls between two Windows
+  PCs work with no echo; `/voicetest` works. Hearing yourself in the
+  headphones turned out to be a local Windows/headset setting (Listen to
+  this device / sidetone), not the call.
 - 0.1.1: the taskbar flashes when a message arrives while GhostChat is
   minimized, and stops when the window is opened.
 
