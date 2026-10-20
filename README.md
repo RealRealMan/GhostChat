@@ -2,7 +2,7 @@
 
 Private, end-to-end encrypted, live 1-to-1 chat for family, with a movie-style hacker terminal look.
 
-**[English](#english) · [繁體中文](#繁體中文) · [For developers](#for-developers)**
+**[English](#english) · [繁體中文](#繁體中文)** · Building from source: [`DEVELOPMENT.md`](DEVELOPMENT.md)
 
 ---
 
@@ -84,7 +84,7 @@ Your secret identity key is created and stored in your computer's secure key sto
 
 Only **one** person sends a key: the **inviter**. The other person is the **contact** (in this example the contact's codename is `NIGHTOWL`).
 
-Every device has a 12-character **invite code** (e.g. `7F3A-91C2-XK4P`), shown when GhostChat starts and with `/mykey`. It is derived from the device's key, so nobody else can have the same code.
+Every device has a 12-character **invite code** (e.g. `KQ7M-3VXA-RT2P`), shown when GhostChat starts and with `/mykey`. It is derived from the device's key, so nobody else can have the same code.
 
 | Step | Who | What to do |
 |---|---|---|
@@ -96,7 +96,7 @@ Every device has a 12-character **invite code** (e.g. `7F3A-91C2-XK4P`), shown w
 
 You now see each other on the left, marked red `[?]` (unverified).
 
-**Without a code** (`/invite` alone), every request shows the requester's invite code, e.g. `INCOMING PAIR REQUEST: NIGHTOWL [7F3A-91C2-XK4P]`. Ask them for their code and accept with `/accept 7F3A-91C2-XK4P`. If two devices claim the same name, a red `DEVICES CLAIM TO BE` warning appears and `/accept NAME` is refused: someone else has your Contact Key.
+**Without a code** (`/invite` alone), every request shows the requester's invite code, e.g. `INCOMING PAIR REQUEST: NIGHTOWL [KQ7M-3VXA-RT2P]`. Ask them for their code and accept with `/accept KQ7M-3VXA-RT2P`. If two devices claim the same name, a red `DEVICES CLAIM TO BE` warning appears and `/accept NAME` is refused: someone else has your Contact Key.
 
 ## 6. Verify (once, on a voice or video call)
 
@@ -138,11 +138,11 @@ Each person verifies the other separately. If the other person missed your words
 
 | Command | Example | What it does |
 |---|---|---|
-| `/invite CODE` | `/invite 7F3A-91C2-XK4P` | Invite the device with this invite code: shows your Contact Key and opens a 10-minute window that accepts **only** that device, automatically. |
+| `/invite CODE` | `/invite KQ7M-3VXA-RT2P` | Invite the device with this invite code: shows your Contact Key and opens a 10-minute window that accepts **only** that device, automatically. |
 | `/invite` | `/invite` | Open the window for anyone with your Contact Key; check each request's code before `/accept CODE`. |
 | `/invite stop` | `/invite stop` | Close the pairing window early. |
-| `/add KEY` | `/add GC1-...` | Send a pair request using someone's Contact Key. `/add` alone opens a `.ghostkey` file. |
-| `/accept [CODE]` | `/accept 7F3A-91C2-XK4P` | Accept a pair request (by invite code) or an incoming file. |
+| `/add KEY` | `/add GHOSTKEY1....` | Send a pair request using someone's Contact Key. `/add` alone opens a `.ghostkey` file. |
+| `/accept [CODE]` | `/accept KQ7M-3VXA-RT2P` | Accept a pair request (by invite code) or an incoming file. |
 | `/reject` | `/reject` | Refuse a pair request or an incoming file. |
 | `/verify NAME` | `/verify NIGHTOWL` | Verify a contact with safety words. On a verified contact, shows your words again. |
 | `/contacts` | `/contacts` | List contacts and whether they are verified. |
@@ -174,6 +174,8 @@ Each person verifies the other separately. If the other person missed your words
 | `/codename NAME` | `/codename GHOST-01` | Change your codename. Contacts see the new name. |
 | `/mykey` | `/mykey` | Show your Contact Key and picture. `/mykey save` saves it as a `.ghostkey` file. |
 | `/theme NAME` | `/theme amber` | Colours: `green`, `amber` or `ice`. |
+| `/fx on\|off` | `/fx off` | Retro effects (scanlines, flicker) on or off. |
+| `/flash on\|off` | `/flash off` | Flash the taskbar when something arrives in the background. |
 | `/help [SECTION]` | `/help voice` | Show all commands, grouped; or one section: `pairing`, `chat`, `voice`, `look`, `safety`. |
 
 ### Safety
@@ -181,6 +183,7 @@ Each person verifies the other separately. If the other person missed your words
 | Command | Example | What it does |
 |---|---|---|
 | `/panic` or **F12** | F12 | Close all connections, wipe everything in memory, exit immediately. |
+| `/panicwipe on\|off` | `/panicwipe on` | Make panic also delete your identity and contacts (default off). You would need to pair again. |
 | `/yes`, `/no` | `/yes` | Answer a confirmation question. |
 | `/quit` | `/quit` | Close GhostChat normally. |
 
@@ -214,6 +217,17 @@ Windows `%APPDATA%\GhostChat\data\` · macOS `~/Library/Application Support/Ghos
 | `panic_wipes_identity` | `false` | Same as `/panicwipe` |
 | `relay_urls` | `[]` | Your own relay servers (empty = free public relays) |
 | `pkarr_relay` | `null` | Your own discovery server (null = public default) |
+
+## 11. License and acceptable use
+
+GhostChat is **source-available, not for commercial use**. It is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md).
+
+- **Allowed:** personal and family use, study and research, and use by charities, schools and public bodies. You may read, change and share the code under the same license.
+- **Not allowed without a separate licence:** any commercial use, such as selling it, offering it as a paid service, or using it in a business.
+- **Commercial licence:** the copyright holder keeps all commercial rights. To ask for a commercial licence, open an issue on the [GitHub repository](https://github.com/RealRealMan/GhostChat).
+
+**Acceptable use:** use GhostChat only for lawful purposes and follow the laws of your country. It must not be used to plan, commit or hide any crime, or for any other illegal activity. GhostChat comes without any warranty, and the authors are not responsible for how others use it.
+
 
 ---
 
@@ -295,7 +309,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 
 只需**一方**傳送金鑰。傳送金鑰的一方稱為**邀請方**，另一方是**通話對象**（例子中通話對象的代號是 `NIGHTOWL`）。
 
-每部裝置都有一個 12 個字的**邀請碼**（例如 `7F3A-91C2-XK4P`），開啟 GhostChat 時和輸入 `/mykey` 時會顯示。邀請碼由裝置的金鑰計算出來，其他人不可能有相同的邀請碼。
+每部裝置都有一個 12 個字的**邀請碼**（例如 `KQ7M-3VXA-RT2P`），開啟 GhostChat 時和輸入 `/mykey` 時會顯示。邀請碼由裝置的金鑰計算出來，其他人不可能有相同的邀請碼。
 
 | 步驟 | 誰 | 做甚麼 |
 |---|---|---|
@@ -307,7 +321,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 
 雙方左邊會出現對方名字，標示紅色 `[?]`（未核實）。
 
-**不用邀請碼**（只輸入 `/invite`）時，每個請求都會顯示對方的邀請碼，例如 `INCOMING PAIR REQUEST: NIGHTOWL [7F3A-91C2-XK4P]`。請向對方核對邀請碼，再輸入 `/accept 7F3A-91C2-XK4P`。如果有兩部裝置用同一個名字，會出現紅色 `DEVICES CLAIM TO BE` 警告，而 `/accept 名字` 會被拒絕：代表有其他人拿到了你的聯絡金鑰。
+**不用邀請碼**（只輸入 `/invite`）時，每個請求都會顯示對方的邀請碼，例如 `INCOMING PAIR REQUEST: NIGHTOWL [KQ7M-3VXA-RT2P]`。請向對方核對邀請碼，再輸入 `/accept KQ7M-3VXA-RT2P`。如果有兩部裝置用同一個名字，會出現紅色 `DEVICES CLAIM TO BE` 警告，而 `/accept 名字` 會被拒絕：代表有其他人拿到了你的聯絡金鑰。
 
 ## 6. 核實（只需一次，用語音或視像通話）
 
@@ -350,11 +364,11 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 
 | 指令 | 例子 | 作用 |
 |---|---|---|
-| `/invite 邀請碼` | `/invite 7F3A-91C2-XK4P` | 邀請這個邀請碼的裝置：顯示你的聯絡金鑰，並開啟 10 分鐘時段，**只會**自動接受該裝置。 |
+| `/invite 邀請碼` | `/invite KQ7M-3VXA-RT2P` | 邀請這個邀請碼的裝置：顯示你的聯絡金鑰，並開啟 10 分鐘時段，**只會**自動接受該裝置。 |
 | `/invite` | `/invite` | 為任何持有你聯絡金鑰的人開啟時段；`/accept 邀請碼` 前請先核對每個請求的邀請碼。 |
 | `/invite stop` | `/invite stop` | 提早關閉配對時段。 |
-| `/add 金鑰` | `/add GC1-...` | 用對方的聯絡金鑰發出配對請求。只輸入 `/add` 可開啟 `.ghostkey` 檔案。 |
-| `/accept [邀請碼]` | `/accept 7F3A-91C2-XK4P` | 接受配對請求（以邀請碼指定）或傳入的檔案。 |
+| `/add 金鑰` | `/add GHOSTKEY1....` | 用對方的聯絡金鑰發出配對請求。只輸入 `/add` 可開啟 `.ghostkey` 檔案。 |
+| `/accept [邀請碼]` | `/accept KQ7M-3VXA-RT2P` | 接受配對請求（以邀請碼指定）或傳入的檔案。 |
 | `/reject` | `/reject` | 拒絕配對請求或傳入的檔案。 |
 | `/verify 名字` | `/verify NIGHTOWL` | 用安全字詞核實聯絡人。對已核實的聯絡人會再次顯示你的字詞。 |
 | `/contacts` | `/contacts` | 列出聯絡人及核實狀態。 |
@@ -386,6 +400,8 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | `/codename 名字` | `/codename GHOST-01` | 更改你的代號，聯絡人會看到新名字。 |
 | `/mykey` | `/mykey` | 顯示你的聯絡金鑰和圖案。`/mykey save` 另存為 `.ghostkey` 檔案。 |
 | `/theme 名稱` | `/theme amber` | 顏色主題：`green`、`amber` 或 `ice`。 |
+| `/fx on\|off` | `/fx off` | 開關復古效果（掃描線、閃爍）。 |
+| `/flash on\|off` | `/flash off` | 在背景收到訊息時令工作列閃動。 |
 | `/help [分類]` | `/help voice` | 分類顯示所有指令；或只顯示一個分類：`pairing`、`chat`、`voice`、`look`、`safety`。 |
 
 ### 安全
@@ -393,6 +409,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 | 指令 | 例子 | 作用 |
 |---|---|---|
 | `/panic` 或 **F12** | F12 | 關閉所有連線、清除記憶體內所有資料，立即退出。 |
+| `/panicwipe on\|off` | `/panicwipe on` | 緊急退出時一併刪除身份和聯絡人（預設關閉），之後要重新配對。 |
 | `/yes`、`/no` | `/yes` | 回答確認問題。 |
 | `/quit` | `/quit` | 正常關閉 GhostChat。 |
 
@@ -427,66 +444,14 @@ Windows `%APPDATA%\GhostChat\data\` · macOS `~/Library/Application Support/Ghos
 | `relay_urls` | `[]` | 自設中繼站（空白 = 免費公共中繼站） |
 | `pkarr_relay` | `null` | 自設探索伺服器（null = 公共預設） |
 
----
+## 11. 授權與使用守則
 
-# For developers
+GhostChat **公開原始碼，但不可作商業用途**，採用 [PolyForm Noncommercial License 1.0.0](LICENSE.md) 授權。
 
-Spec: [`PRD-v0.3.md`](PRD-v0.3.md) · Design: [`ARCHITECTURE.md`](ARCHITECTURE.md) · Security: [`SECURITY.md`](SECURITY.md) · Status: [`PROGRESS.md`](PROGRESS.md) · Open decisions: [`OPEN-QUESTIONS.md`](OPEN-QUESTIONS.md)
+- **可以：** 個人及家庭使用、學習和研究，以及慈善團體、學校和公營機構使用。你可以在相同授權下閱讀、修改和分享原始碼。
+- **未經另外授權不可以：** 任何商業用途，例如出售、作為收費服務提供，或在業務中使用。
+- **商業授權：** 版權持有人保留所有商業權利。如需商業授權，請在 [GitHub 項目](https://github.com/RealRealMan/GhostChat) 開 issue 聯絡。
 
-Requires Rust 1.95+ (tested with 1.98.1) and **CMake** (builds the Opus codec for voice calls; Windows: `winget install Kitware.CMake`, macOS: `brew install cmake`). Linux also needs `cmake libgtk-3-dev libxdo-dev libxkbcommon-dev libwayland-dev libdbus-1-dev libasound2-dev`.
+**使用守則：** 只可在合法情況下使用 GhostChat，並須遵守你所在地的法律。不得用於策劃、進行或掩飾任何罪行，或任何其他非法活動。GhostChat 不附帶任何保證，作者不會為他人的使用方式負責。
 
-Run:
-
-```bash
-cargo run --release
-```
-
-Two copies on one computer (separate identities):
-
-```bash
-cargo run --release -- --profile alice
-```
-
-```bash
-cargo run --release -- --profile bob
-```
-
-Flags: `--wipe-identity` (delete this computer's identity and contacts), `--help`. Debug logging to stderr only: set `GHOSTCHAT_DEBUG=1`.
-
-Checks:
-
-```bash
-cargo fmt --check
-```
-
-```bash
-cargo clippy --all-targets -- -D warnings
-```
-
-```bash
-cargo test
-```
-
-Ignored tests that need the internet or the real OS key store:
-
-```bash
-cargo test --test internet -- --ignored --nocapture
-```
-
-```bash
-cargo test --test ui real_stack -- --ignored --nocapture
-```
-
-Headless UI tests save screenshots of every screen to `target/ui-shots/`.
-
-Windows installer (output in `dist/`):
-
-```bash
-cargo install cargo-packager --version 0.11.8 --locked
-```
-
-```bash
-cargo packager --release --formats nsis
-```
-
-macOS (`app,dmg`) and Linux (`appimage,deb`) packages are built by `.github/workflows/release.yml` (manual only: Actions → release → Run workflow; download from the run's Artifacts).
+（如中英文版本有差異，以英文版及 [LICENSE.md](LICENSE.md) 為準。）

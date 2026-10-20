@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2024"
 rust-version = "1.95"
 description = "Private, end-to-end encrypted live chat for one family"
-license = "MIT OR Apache-2.0"
+license = "PolyForm-Noncommercial-1.0.0"
 publish = false
 
 [dependencies]

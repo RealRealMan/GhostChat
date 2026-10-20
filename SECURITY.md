@@ -81,4 +81,6 @@ to `=1.3.0`; other dependencies are the latest stable versions as of
 
 ## Reporting
 
-This is a private family project. Report issues directly to the project owner.
+Please report security problems privately through GitHub: the repository's
+**Security** tab → **Report a vulnerability**. Do not open a public issue for
+a security problem. Other bugs can go to the public issue tracker.

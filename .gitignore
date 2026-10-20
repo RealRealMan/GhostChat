@@ -37,3 +37,6 @@ vault.bin
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Local AI assistant instructions (kept out of the public repository)
+CLAUDE.md
