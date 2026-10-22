@@ -1,12 +1,16 @@
-# Builds unsigned installers for all three OSes and SHA-256 checksums.
-# Manual only (Actions -> release -> Run workflow): the macOS jobs use a lot
-# of the free Actions minutes, so tags do not trigger it automatically.
-# Packages build successfully on GitHub (v0.1.0). macOS and Linux packages
-# have not yet been installed on real machines.
+# Builds unsigned installers for all three OSes from a version tag and
+# publishes them, with SHA-256 checksums, as a GitHub Release.
+# Manual: Actions -> release -> Run workflow, enter the tag (e.g. v0.2.0).
+# The release text comes from .github/release-notes/<tag>.md.
+# macOS and Linux packages have not yet been installed on real machines.
 name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to build and publish, e.g. v0.2.0"
+        required: true
 
 permissions:
   contents: read
@@ -36,6 +40,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -55,6 +61,15 @@ jobs:
       - name: macOS ad-hoc signature check
         if: runner.os == 'macOS'
         run: codesign --verify --deep --verbose=2 dist/*.app || true
+      - name: Name the DMG after its CPU
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # Both macOS builds would otherwise upload a file with the same name.
+          version="${{ inputs.tag }}"
+          for f in dist/*.dmg; do
+            mv "$f" "dist/GhostChat_${version#v}_${{ matrix.target }}.dmg"
+          done
       - name: Checksums
         shell: bash
         run: |
@@ -72,3 +87,40 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/SHA256SUMS-*.txt
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # The branch the workflow runs from (main): it has the release notes,
+      # which are written after the tag.
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          merge-multiple: true
+      - name: One checksum file
+        shell: bash
+        run: |
+          cd assets
+          cat SHA256SUMS-*.txt | sed 's#\./##; s#\*##' > SHA256SUMS.txt
+          rm SHA256SUMS-*.txt
+          ls -la
+          cat SHA256SUMS.txt
+      - name: Create or update the GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          notes=".github/release-notes/${TAG}.md"
+          test -f "$notes" || { echo "missing $notes"; exit 1; }
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file "$notes"
+            gh release upload "$TAG" assets/* --clobber
+          else
+            gh release create "$TAG" assets/* --verify-tag \
+              --title "GhostChat ${TAG}" --notes-file "$notes"
+          fi

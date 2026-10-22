@@ -46,7 +46,7 @@ GhostChat does **not** invent its own cryptography. It uses well-known, widely u
 
 ## 3. Install
 
-You get one installer file from the person who invites you. Only accept it through a trusted channel such as Signal.
+Download the installer for your system from the [Releases page](https://github.com/RealRealMan/GhostChat/releases/latest), or get it from the person who invites you through a trusted channel such as Signal. Each release lists the SHA-256 checksum of every file in `SHA256SUMS.txt`.
 
 The app is not code-signed (signing costs money every year), so your computer warns you the first time. This is expected.
 
@@ -271,7 +271,7 @@ GhostChat **沒有**自創加密方法，而是採用廣泛使用的開源程式
 
 ## 3. 安裝
 
-邀請你的人會給你一個安裝檔，請只經可信的渠道（例如 Signal）接收。
+請在 [Releases 頁面](https://github.com/RealRealMan/GhostChat/releases/latest) 下載適合你系統的安裝檔，或由邀請你的人經可信渠道（例如 Signal）傳給你。每個版本都附有 `SHA256SUMS.txt`，列出每個檔案的 SHA-256 校驗碼。
 
 程式沒有付費簽名，所以第一次安裝時電腦會彈出警告，這是正常的，不是病毒。
 

@@ -58,4 +58,9 @@ cargo install cargo-packager --version 0.11.8 --locked
 cargo packager --release --formats nsis
 ```
 
-macOS (`app,dmg`) and Linux (`appimage,deb`) packages are built by `.github/workflows/release.yml` (manual only: Actions → release → Run workflow; download from the run's Artifacts).
+Publishing a release (all platforms, on GitHub):
+
+1. Set `version` in `Cargo.toml`, commit, and push `main`.
+2. Write `.github/release-notes/vX.Y.Z.md`, commit and push it.
+3. Tag the commit and push the tag: `git tag -a vX.Y.Z -m "GhostChat vX.Y.Z"` then `git push origin vX.Y.Z`.
+4. Actions → **release** → **Run workflow** on `main`, enter the tag. It builds Windows, macOS (Apple Silicon and Intel) and Linux packages and creates or updates the GitHub Release with them and `SHA256SUMS.txt`.
