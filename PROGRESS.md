@@ -1,6 +1,6 @@
 # GhostChat — Progress
 
-Status as of 2026-10-22, release **v0.2.1** (first public release, PolyForm Noncommercial license; the app is unchanged from 0.2.0). Source of truth: PRD-v0.3.md.
+Status as of 2026-10-22, release **v0.2.2** (first public release, PolyForm Noncommercial license; same app as 0.2.0 with security updates of rustls, rustls-webpki, webpki roots, ctutils and tokio). Source of truth: PRD-v0.3.md.
 
 The development history was squashed into a single commit for the public
 repository, so per-phase commits no longer exist.
