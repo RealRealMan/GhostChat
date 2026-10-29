@@ -97,14 +97,16 @@ jobs:
       # The branch the workflow runs from (main): it has the release notes,
       # which are written after the tag.
       - uses: actions/checkout@v7
+      # Not "assets": the checkout already has an assets/ folder (app icons),
+      # which would be uploaded too.
       - uses: actions/download-artifact@v8
         with:
-          path: assets
+          path: release-files
           merge-multiple: true
       - name: One checksum file
         shell: bash
         run: |
-          cd assets
+          cd release-files
           cat SHA256SUMS-*.txt | sed 's#\./##; s#\*##' > SHA256SUMS.txt
           rm SHA256SUMS-*.txt
           ls -la
@@ -118,9 +120,10 @@ jobs:
           notes=".github/release-notes/${TAG}.md"
           test -f "$notes" || { echo "missing $notes"; exit 1; }
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release edit "$TAG" --notes-file "$notes"
-            gh release upload "$TAG" assets/* --clobber
+            # A failed earlier run can leave a draft behind: upload, then publish it.
+            gh release upload "$TAG" release-files/* --clobber
+            gh release edit "$TAG" --notes-file "$notes" --draft=false
           else
-            gh release create "$TAG" assets/* --verify-tag \
+            gh release create "$TAG" release-files/* --verify-tag \
               --title "GhostChat ${TAG}" --notes-file "$notes"
           fi
